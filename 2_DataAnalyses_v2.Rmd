@@ -1,0 +1,903 @@
+---
+title: "2_DataAnalyses_v2"
+author: "sbsambado"
+date: "2022-12-16"
+output: html_document
+---
+
+# Manuscript - "TITLE"
+## Author(s) - S Sambado, A J MacDonald, A Swei, C J Briggs
+
+### Script 1. Data cleaning
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(readr)
+library(ggplot2)
+library(tidyverse)
+library(rstatix)
+library(MASS)
+library(lme4)
+library(psych)
+library(aod)
+library(car)
+ 
+drag_climate_lifestage <- read.csv("data/drag_climate_lifestage.csv")
+
+liz_climate_lifestage <- read.csv("data/liz_climate_lifestage.csv")
+
+liz_wide_climate_prop <- read.csv("data/liz_wide_climate_prop.csv")
+```
+
+
+#### Summary statistics
+
+A total of 2,399 I. pacificus ticks were collected via drag cloth method (n = 895) and lizard burden (n = 1,503) (Fig. 4). For the drag cloth method, all life stages were collected whereas on lizards, only larval (n = 713 and nymphal (n = 791 I. pacificus were collected. A total of 297 individual lizards were assessed for tick burdens. 
+
+```{r}
+## dragged data
+
+drag_total <- drag_climate_lifestage %>%
+  tally(count) # 895
+
+drag_climate_lifestage %>%
+  group_by(life_stage) %>%
+  tally(count)  # L = 253, N = 89, A = 553
+
+## lizard data
+
+liz_total <- liz_climate_lifestage %>%
+  tally(count) # 1503	
+
+liz_climate_lifestage %>%
+  group_by(lifestage) %>%
+  tally(count) # L = 713, N = 791
+
+
+## ixodes total
+drag_total + liz_total # 2398
+```
+
+
+## Part 1. Variable trends in tick seasonality
+
+Across all sites and life stages, drag cloth sampling showed that mean counts of I. pacificus were highest in April (17.3 ± 35.3) followed by March (11.9 ± 12.7), May (8.9 ± 10.6), January (8.4 ± 7.3), and June (4.3 ± 4.3) (Fig. 5). The peak mean counts of larvae occurred in April (25.2 ± 33.8), of nymphs occurred in May (5.3 ± 5.5), and of adults occurred in April (20.7 ± 44.0). Lizard burden sampling showed that mean counts of I. pacificus were highest in April (3.9 ± 5.6), followed by May (2.7 ± 5.1), March (2.3 ± 3.9), and June (1.4 ± 2.7).  The peak mean counts of larvae occurred in May (3.1 ± 6.4), and nymphs occurred in April (4.9 ± 6.0). 
+
+```{r}
+
+## dragged
+
+### monthly means
+drag_climate_lifestage %>%
+   group_by(month_numeric) %>%
+   summarize(Mean = mean(count, na.rm = TRUE),
+             Sd = sd(count, na.rm = TRUE))
+
+### life stage means
+drag_climate_lifestage %>%
+   group_by(month_numeric, life_stage) %>%
+  filter(life_stage == "L") %>%
+   summarize(Mean = mean(count, na.rm = TRUE),
+             Sd = sd(count, na.rm = TRUE)) 
+
+drag_climate_lifestage %>%
+   group_by(month_numeric, life_stage) %>%
+  filter(life_stage == "N") %>%
+   summarize(Mean = mean(count, na.rm = TRUE),
+             Sd = sd(count, na.rm = TRUE)) 
+
+
+drag_climate_lifestage %>%
+   group_by(month_numeric, life_stage) %>%
+  filter(life_stage == "A") %>%
+   summarize(Mean = mean(count, na.rm = TRUE),
+             Sd = sd(count, na.rm = TRUE)) 
+
+
+## lizard burden
+
+### monthly means
+liz_climate_lifestage %>%
+   group_by(month_numeric) %>%
+   summarize(Mean = mean(count, na.rm = TRUE),
+             Sd = sd(count, na.rm = TRUE))  ## need to incorporate march in data
+
+### life stage means
+liz_climate_lifestage %>%
+   group_by(month_numeric) %>%
+  filter(lifestage == "larval") %>%
+   summarize(Mean = mean(count, na.rm = TRUE),
+             Sd = sd(count, na.rm = TRUE)) 
+
+liz_climate_lifestage %>%
+   group_by(month_numeric) %>%
+  filter(lifestage == "nymphal") %>%
+   summarize(Mean = mean(count, na.rm = TRUE),
+             Sd = sd(count, na.rm = TRUE)) 
+```
+
+
+To gauge trends in juvenile phenology, only juvenile ticks were assessed with a Kruskal-Wallis and Wilcox test. When the rank of tick means was compared by sampling methods (drag vs lizard burden), only lizard burden data was significant for both Kruskall-Wallis (testing latitudinal differences across regions) and the Wilcox test (testing climatic differences across locations). For drag data, no significance was found using the same tests, but this could be attributed to low sample size of juvenile ticks collected via drag method, especially in more southern, drier sites. 
+
+```{r}
+################################## Drag data
+
+# step 1. format data for test
+## juveniles
+drag_climate_lifestage_juv <- drag_climate_lifestage %>%
+  filter(life_stage != "A")
+drag_climate_lifestage_juv$region <- factor(drag_climate_lifestage_juv$region)
+drag_climate_lifestage_juv$count <- as.numeric(drag_climate_lifestage_juv$count)
+
+
+## adult
+drag_climate_lifestage_adult <- drag_climate_lifestage %>%
+  filter(life_stage == "A")
+drag_climate_lifestage_adult$region <- factor(drag_climate_lifestage_adult$region)
+drag_climate_lifestage_adult$count <- as.numeric(drag_climate_lifestage_adult$count)
+
+################################## Lizard data
+
+liz_climate_lifestage$count <- as.numeric(liz_climate_lifestage$count)
+liz_climate_lifestage$location <- as.factor(liz_climate_lifestage$location)
+```
+
+
+For drag data, no significance was found using the same tests, but this could be attributed to low sample size of juvenile ticks collected via drag method, especially in more southern, drier sites.
+
+
+```{r}
+#################################################################### REGION
+################################## entire season
+# step 2. run kruskall wallis test
+drag_climate_lifestage_juv  %>% 
+  kruskal.test(count ~ region)
+# Kruskal-Wallis chi-squared = 534.38, df = 16, p-value < 2.2e-16
+
+# step 3. post-hoc test Dunn test
+drag_climate_lifestage_juv %>%
+  dunn_test(count ~ region, p.adjust.method = "bonferroni")## p adj not significant, regular p is different for central and southern 
+
+## step 4. whole year regional differences (effect size)
+drag_climate_lifestage_juv %>%
+  kruskal_effsize(count ~ region)
+
+# effect size: 0.06622053	eta2[H]	moderate, (borderline small effect < .06)
+
+## based on 
+#The results of the Kruskall-Wallis chi-squared test were singicat
+#Pairwise comparisons using Dunns test indicate that central region was significantly different from those of southern region (z = -2.1, p = 0.032)
+
+
+
+################################## month_numeric to month
+
+### split into months
+
+#### march
+# step 1. kruskal
+drag_climate_lifestage_juv %>%
+  filter(month_numeric == "3") %>%
+  kruskal.test(count ~ region)
+# Kruskal-Wallis chi-squared = 94.117, df = 16, p-value = 4.335e-13
+
+# step 2. effect size
+drag_climate_lifestage_juv %>%
+  filter(month_numeric == "3") %>%
+  kruskal_effsize(count ~ region)
+# -0.1956522	eta2[H]	large
+
+# step 3. post hoc
+ drag_climate_lifestage_juv %>%
+  filter(month_numeric == "3")%>%
+  dunn_test(count ~ region, p.adjust.method = "bonferroni")
+ # p adj not significant
+
+  #### april
+ # step 1. kruskal
+drag_climate_lifestage_juv %>%
+  filter(month_numeric == "4") %>%
+  kruskal.test(count ~ region)
+# Kruskal-Wallis chi-squared = 153.72, df = 16, p-value < 2.2e-16
+
+# step 2. effect size
+drag_climate_lifestage_juv %>%
+  filter(month_numeric == "4") %>%
+  kruskal_effsize(count ~ region)
+# -0.1996124	eta2[H]	large
+
+# step 3. post hoc
+ drag_climate_lifestage_juv %>%
+  filter(month_numeric == "4")%>%
+  dunn_test(count ~ region, p.adjust.method = "bonferroni")
+ # p adj not significant
+
+ 
+ #### may
+ # step 1. kruskal
+drag_climate_lifestage_juv %>%
+  filter(month_numeric == "5") %>%
+  kruskal.test(count ~ region)
+# Kruskal-Wallis chi-squared = 177.67, df = 16, p-value < 2.2e-16
+
+# step 2. effect size
+drag_climate_lifestage_juv %>%
+  filter(month_numeric == "5") %>%
+  kruskal_effsize(count ~ region)
+# 0.04145658	eta2[H]	small THIS CHANGED
+
+# step 3. post hoc
+ drag_climate_lifestage_juv %>%
+  filter(month_numeric == "5")%>%
+  dunn_test(count ~ region, p.adjust.method = "bonferroni")
+ # p adj not significant
+ 
+
+#### june
+ # step 1. kruskal
+drag_climate_lifestage_juv %>%
+  filter(month_numeric == "6") %>%
+  kruskal.test(count ~ region)
+# Kruskal-Wallis chi-squared = 154.94, df = 16, p-value < 2.2e-16
+
+# step 2. effect size
+drag_climate_lifestage_juv %>%
+  filter(month_numeric == "6") %>%
+  kruskal_effsize(count ~ region)
+# 0.25199368	eta2[H]	large THIS CHANGED
+
+# step 3. post hoc
+ drag_climate_lifestage_juv %>%
+  filter(month_numeric == "6")%>%
+  dunn_test(count ~ region, p.adjust.method = "bonferroni")
+ # p adj not significant
+
+ 
+#################################################################### LOCATION 
+
+### juvenile 
+wilcox.test(count ~ location, data = drag_climate_lifestage_juv) 
+# W = 232, p-value = 0.4383 not significant
+ 
+## try adults
+ 
+drag_climate_lifestage_adult %>%
+  kruskal.test(count ~ region)
+# Kruskal-Wallis chi-squared = 466.07, df = 16, p-value < 2.2e-16
+
+drag_climate_lifestage_adult %>%
+  kruskal_effsize(count ~ region)
+# -0.02975047 small
+
+drag_climate_lifestage_adult %>%
+  dunn_test(count ~ region, p.adjust.method = "bonferroni")
+# p adj not signficant
+
+## try location
+
+wilcox.test(count ~ location, data = drag_climate_lifestage_adult) 
+# W = 183.5, p-value = 0.8655 not significant
+
+```
+
+With lizard burden data there was a significant difference by latitudinal region (2 =7748.7, df = 17, p-value < 0.001) and climatic location (W = 45989, p-value ≤ 0.001). For latitudinal region, the post-hoc Dunn test showed all three regional comparisons were significantly different with Central and Southern as the most significantly different groupings (z-test statistic = -5.6, p-value < 0.001) followed by Northern and Southern (z-test statistic = -4.9, p-value < 0.001), and Central and Northern (z-test statistic = 2.1, p-value = 0.003). The effect size of latitudinal region on lizard tick burdens  was moderate based on the Kruskall-Wallis test (H-statistic = 0.0694). Lizard burdens differed by climatic location with coastal having the higher mean tick count (3.35 ± 5.52) than inland (1.97 ± 3.65). 
+
+
+```{r}
+#################################################################### REGION
+################################## entire season
+## regional differences, entire season
+liz_climate_lifestage %>%
+  kruskal.test(count ~ region)
+# Kruskal-Wallis chi-squared = 7748.7, df = 17, p-value < 2.2e-16
+
+liz_climate_lifestage %>%
+  kruskal_effsize(count ~ region)
+# 0.0693521 moderate
+
+liz_climate_lifestage %>%
+  dunn_test(count ~ region) 
+# signficant !
+# count	central	northern	312	40	2.109963	3.486158e-02	3.486158e-02	*
+# count	central	southern	312	216	-5.606733	2.061814e-08	6.185443e-08	****
+# count	northern	southern	40	216	-4.941717	7.743775e-07	1.548755e-06	****
+
+
+################################## month to month
+
+
+#################################################################### LOCATION
+################################## entire season
+## location difference, entire season
+wilcox.test(count ~ location, liz_climate_lifestage)
+# W = 45989, p-value = 0.001414
+
+## calculate mean, sd
+liz_climate_lifestage %>%
+  group_by(location) %>%
+  summarise(mean = mean(count), sd = sd(count))
+# coastal   3.4 5.5
+# inland    2.0 3.6 
+
+
+```
+
+The month where tick means became significantly different by latitudinal region and climatic location was May (region: 2 = 2846.5, df = 17, p-value < 0.001; location: W = 6247, p-value = 0.008) and continued to be significantly different in June (region: 2 = 2838, df = 17, p-value < 0.001; location: W = 5094, p-value ≤ 0.001). In April there was no significant difference for latitudinal region or climatic location. All tick count means by reserve, latitudinal region, and climatic location can be found in Supplemental Table 4.
+
+
+```{r}
+
+#################################################################### REGION
+#### look at monthly differences by region
+
+## march didn't sample at all locations so omitted from analysis
+
+#### april --> not significant
+ # step 1. kruskal
+liz_climate_lifestage %>%
+  filter(month_numeric == "4") %>%
+  kruskal.test(count ~ region)
+# Kruskal-Wallis chi-squared = 2091.4, df = 17, p-value < 2.2e-16
+
+# step 2. effect size
+liz_climate_lifestage %>%
+  filter(month_numeric == "4") %>%
+  kruskal_effsize(count ~ region)
+# 0.02987641	eta2[H]	small
+
+# step 3. post hoc
+ liz_climate_lifestage %>%
+  filter(month_numeric == "4")%>%
+  dunn_test(count ~ region, p.adjust.method = "bonferroni")
+ # p adj not significant
+
+
+ #### may --> significant
+ # step 1. kruskal
+liz_climate_lifestage %>%
+  filter(month_numeric == "5") %>%
+  kruskal.test(count ~ region)
+# Kruskal-Wallis chi-squared = 2846.5, df = 17, p-value < 2.2e-16
+
+# step 2. effect size
+liz_climate_lifestage %>%
+  filter(month_numeric == "5") %>%
+  kruskal_effsize(count ~ region)
+# 0.2564398	eta2[H]	large THIS CHANGED
+
+# step 3. post hoc
+ liz_climate_lifestage %>%
+  filter(month_numeric == "5")%>%
+  dunn_test(count ~ region, p.adjust.method = "bonferroni")
+# significant
+# 1	count	central	northern	120	12	1.680530	9.285423e-02	2.785627e-01	ns
+# 2	count	central	southern	120	72	-6.689077	2.245821e-11	6.737462e-11	****
+# 3	count	northern	southern	12	72	-4.829799	1.366708e-06	4.100123e-06	****
+
+
+  #### june --> significant
+ # step 1. kruskal
+liz_climate_lifestage %>%
+  filter(month_numeric == "6") %>%
+  kruskal.test(count ~ region)
+# Kruskal-Wallis chi-squared = 2838, df = 17, p-value < 2.2e-16
+
+# step 2. effect size
+liz_climate_lifestage %>%
+  filter(month_numeric == "6") %>%
+  kruskal_effsize(count ~ region)
+# 0.03773035	eta2[H]	small THIS CHANGED
+
+# step 3. post hoc
+ liz_climate_lifestage %>%
+  filter(month_numeric == "6")%>%
+  dunn_test(count ~ region, p.adjust.method = "bonferroni")
+ # significant
+# 1	count	central	northern	120	8	-1.021703	0.306921606	0.920764817	ns
+# 2	count	central	southern	120	52	-3.035018	0.002405216	0.007215649	**
+# 3	count	northern	southern	8	52	-0.344449	0.730508663	1.000000000	ns
+
+ 
+#################################################################### LOCATION 
+
+## april --> not significant
+liz_4 <- liz_climate_lifestage %>%
+  filter(month_numeric == "4")
+ 
+wilcox.test(count ~ location, data = liz_4)
+# W = 2919.5, p-value = 0.267
+
+## may --> significant
+liz_5 <- liz_climate_lifestage %>%
+  filter(month_numeric == "5")
+ 
+wilcox.test(count ~ location, data = liz_5)
+# W = 6247, p-value = 0.007669
+
+## june --> significant
+liz_6 <- liz_climate_lifestage %>%
+  filter(month_numeric == "6")
+ 
+wilcox.test(count ~ location, data = liz_6)
+# W = 5094, p-value = 0.0009347
+```
+
+
+
+#### Part 2. Associations between climate and tick abundances vary by life stage 
+
+For I. pacificus collected via drag cloth, a negative binomial regression model was used to assess associations between tick counts (aggregated by reserve per month) and climate variables from the day of tick collection such as daily temperature (maximum, minimum, mean; C), daily vapor pressure deficit (maximum, minimum; kPA), and precipitation (mm) summed by month of collection (ppt month) and prior month of collection (ppt prior month) (Sup. Fig. 3). The best fit model for all I.pacificus collected via drag cloth included maximum vpd, minimum vpd, and summed monthly precipitation with tick counts having a negative association with minimum vpd (estimate = -0.24, std error = 0.097, z-value = -2.4, p-value = 0.02). Looking at different life stages association with climate variables we tested adults and juveniles (larvae and nymphs; combined due to low sample sizes) separately. 
+
+
+For adult ticks, the best fit model included mean temperature, minimum temperature, maximum vpd, and minimum vpd. Minimum vpd (estimate = -0.60, p = 0.007) and mean temperature (estimate = -0.57, p = 0.04) were negatively associated with adult tick counts. Positive associations with tick counts included maximum vpd (estimate = 0.23, p = 0.01) and minimum temperature (estimate = 0.44, p = 0.04). For juvenile ticks (larvae and nymphs), the best fit model only included precipitation from the prior month that was positively associated with tick counts (estimate = 0.02, p = 0.003). Full model summaries can be found in Supplemental Table X. 
+
+```{r}
+
+##### DRAG
+
+fit_nb_a  <- glm.nb(count ~ tmax + tmean + tmin + vpdmax + vpdmin +ppt_month + ppt_prior_month,
+                   data = drag_climate_nolifestage)
+
+summary(fit_nb_a)
+
+stepAIC(fit_nb_a, direction = "both")
+# Step:  AIC=397.6
+# count ~ vpdmax + vpdmin + ppt_prior_month
+
+fit_nb_a_1 <- glm.nb(count ~ vpdmax + vpdmin + ppt_prior_month,
+                     data = drag_climate_nolifestage)
+summary(fit_nb_a_1)
+# (Intercept)      2.480906   0.311252   7.971 1.58e-15 ***
+# vpdmax           0.033384   0.017430   1.915   0.0555 .  
+# vpdmin          -0.235564   0.097339  -2.420   0.0155 *  
+# ppt_prior_month  0.010718   0.006765   1.584   0.1131 
+
+
+# juvenile models
+drag_climate_lifestage_juv <- drag_climate_lifestage %>%
+  filter(life_stage != "A")
+
+
+fit_nb_juv_1 <- glm.nb(count ~ tmax + tmean + tmin + vpdmax + vpdmin +ppt_month + ppt_prior_month,
+                   data = drag_climate_lifestage_juv)
+
+summary(fit_nb_juv_1)
+
+stepAIC(fit_nb_juv_1, direction = "both") # ppt_prior_month most significant
+# Step:  AIC=257.86
+# count ~ ppt_prior_month
+
+fit_nb_juv_2 <- glm.nb(count ~ ppt_prior_month,
+                       data = drag_climate_lifestage_juv)
+summary(fit_nb_juv_2)
+# (Intercept)     1.579585   0.220416   7.166  7.7e-13 ***
+# ppt_prior_month 0.021921   0.007533   2.910  0.00361 ** 
+
+# adult models
+drag_climate_lifestage_adult <- drag_climate_lifestage %>%
+  filter(life_stage == "A")
+
+
+fit_nb_adult_1 <- glm.nb(count ~ tmax + tmean + tmin + vpdmax + vpdmin +ppt_month + ppt_prior_month,
+                   data = drag_climate_lifestage_adult)
+
+summary(fit_nb_adult_1) # vpdmin > vpdmax
+
+stepAIC(fit_nb_adult_1, direction = "both")  # count ~ tmean + tmin + vpdmax + vpdmin
+
+# Step:  AIC=286.7
+# count ~ tmean + tmin + vpdmax + vpdmin
+
+fit_nb_adult_2 <- glm.nb(count ~ tmean + tmin + vpdmax + vpdmin,
+                         data = drag_climate_lifestage_adult)
+summary(fit_nb_adult_2)
+# (Intercept)  4.43141    1.21109   3.659 0.000253 ***
+# tmean       -0.56602    0.27900  -2.029 0.042485 *  
+# tmin         0.43635    0.21613   2.019 0.043497 *  
+# vpdmax       0.23332    0.09454   2.468 0.013588 *  
+# vpdmin      -0.60168    0.22334  -2.694 0.007061 ** 
+```
+
+
+For I. pacificus collected from individual lizard burdens, a negative binomial regression model was used to find associations between tick counts on individual lizards and the same climate variables from drag cloth models. The best fit model for all life stages of ticks on individual lizards included maximum temperature, mean temperature, minimum temperature, minimum vpd with tick burdens having a positive association with minimum vpd (estimate = .01, std error = 0.066, z-value = 2.7, p-value = 0.006). 
+
+```{r}
+
+
+## ALL 
+fit_liz_1 <- glm.nb(count ~ tmax + tmean + tmin + vpdmax + vpdmin +ppt_month + ppt_prior_month,
+                    data = liz_climate_nolifestage) ## USE THIS ONE IN PAPER
+summary(fit_liz_1)
+
+stepAIC(fit_liz_1, direction = "both")
+
+# Step:  AIC=1551.72
+# count ~ tmax + tmean + tmin + vpdmin
+
+fit_liz_1_1 <- glm.nb(count ~ tmax + tmean + tmin + vpdmin,
+                      data = liz_climate_nolifestage)
+
+summary(fit_liz_1_1)
+# 
+# (Intercept)  3.011e+00  4.792e-01   6.284 3.29e-10 ***
+# tmax         2.440e+03  1.489e+03   1.639  0.10117    
+# tmean       -4.881e+03  2.977e+03  -1.639  0.10116    
+# tmin         2.440e+03  1.489e+03   1.639  0.10118    
+# vpdmin       1.818e-01  6.668e-02   2.726  0.00641 ** 
+
+
+# fit_liz_2 <- glm.nb(count ~ tmax + tmean + tmin + vpdmax + vpdmin +ppt_month + ppt_prior_month,
+#                     data = liz_climate_lifestage)
+# summary(fit_liz_2)
+# 
+# stepAIC(fit_liz_2, direction = "both")
+# # Step:  AIC=2242.84
+# # count ~ tmean + vpdmax + vpdmin + ppt_month
+# 
+# fit_liz_2_1 <- glm.nb(count ~ tmean + vpdmax + vpdmin + ppt_month,
+#                       data = liz_climate_lifestage)
+# 
+# summary(fit_liz_2_1)
+# # (Intercept)  4.195639   0.493981   8.494  < 2e-16 ***
+# # tmean       -0.320812   0.047829  -6.708 1.98e-11 ***
+# # vpdmax       0.069508   0.015847   4.386 1.15e-05 ***
+# # vpdmin       0.145279   0.053718   2.704  0.00684 ** 
+# # ppt_month   -0.019295   0.009952  -1.939  0.05252 . 
+
+
+## Larva
+
+liz_climate_lifestage_larv <- liz_climate_lifestage %>%
+  filter(lifestage == "larval")
+
+fit_liz_3 <- glm.nb(count ~ tmax + tmean + tmin + vpdmax + vpdmin +ppt_month + ppt_prior_month,
+                    data = liz_climate_lifestage_larv)
+summary(fit_liz_3)
+
+stepAIC(fit_liz_3, direction = "both")
+# Step:  AIC=1020.15
+# count ~ tmean + tmin + vpdmax + ppt_month
+
+
+fit_liz_3_1 <- glm.nb(count ~ tmean + tmin + vpdmax + ppt_month,
+                      data = liz_climate_lifestage_larv)
+#             Estimate Std. Error z value Pr(>|z|)    
+# (Intercept)  9.35815    1.45509   6.431 1.27e-10 ***
+# tmean       -1.31178    0.23998  -5.466 4.60e-08 ***
+# tmin         0.66050    0.14286   4.623 3.78e-06 ***
+# vpdmax       0.30412    0.05903   5.152 2.58e-07 ***
+# ppt_month   -0.04347    0.01777  -2.447   0.0144 * 
+
+summary(fit_liz_3_1)
+## Nymph
+
+liz_climate_lifestage_nymp <- liz_climate_lifestage %>%
+  filter(lifestage != "larval")
+
+fit_liz_4 <- glm.nb(count ~ tmax + tmean + tmin + vpdmax + vpdmin +ppt_month + ppt_prior_month,
+                    data = liz_climate_lifestage_nymp)
+summary(fit_liz_4)
+
+stepAIC(fit_liz_4, direction = "both")
+# Step:  AIC=1185.19
+# count ~ tmax + tmean + vpdmin
+
+
+fit_liz_4_1 <- glm.nb(count ~ tmax + tmean + vpdmin, 
+                      data = liz_climate_lifestage_nymp)
+
+summary(fit_liz_4_1)
+# (Intercept)  2.47679    0.42409   5.840 5.21e-09 ***
+# tmax         0.22377    0.04321   5.179 2.23e-07 ***
+# tmean       -0.44582    0.07170  -6.218 5.03e-10 ***
+# vpdmin       0.18277    0.06052   3.020  0.00253 ** 
+```
+
+For nymphs, the best fit model included maximum temperature, mean temperature, and minimum vpd. Mean temperature was negatively associated with nymphal tick burdens (estimate = -0.45, p = 0.002), whereas maximum temperature (estimate = 0.22, p < 0.001) and minimum vpd (estimate = 0.18, p = 0.003) were positively associated with tick burdens. For larvae, the best fit model included mean temperature, minimum temperature, maximum vpd, and summed monthly precipitation with maximum vpd as the most significant variable (estimate = .03, std error = 0.081, z-value = 3.9, p-value ≤ 0.001). Negative associations with larval burdens were mean temperature (estimate = -1.3, p < 0.001) and summed monthly precipitation (estimate = -0.043, p = 0.01) whereas maximum vpd (estimate = 0.30, p-value < 0.001) and minimum temperature (estimate = 0.66, p-value < 0.001) were positively associated. 
+
+### Part 3. Synchronous feeding potential has lower odds with higher mean temperature
+
+To understand the relationship between mean temperature – the most significant climate covariate – and the log odds of having a synchronous feeding event (nymphal index = 0.3 - 0.7) a logistic regression with a single continuous predictor variable was used. Although the best fit model was with two continuous predictors, mean temperature and maximum vapor pressure deficit, for interpretation’s sake we will discuss only the single predictor model with the effect of mean temperature, which was the most significant single predictor (resulted in delta AIC > 2 from other models). The model with mean temperature as a predictor fit significantly better than the null model with no predictors (2 = 4.5, df = 1, p = 0.03) and had a log likelihood of -140.13 (df = 2). For every one unit increase in mean temperature, the odds of synchronous feeding increases by a factor of 0.91 (95% CI 0.82 – 0.99), meaning the chances of synchronous feeding increases as the mean temperature increases (Figure X, Sup. Fig. 4). 
+
+```{r}
+liz_wide_climate_prop <- read.csv("data/liz_wide_climate_prop.csv")
+
+fit_binom_1 <- glm(binned_prop ~ tmax + tmean + tmin + vpdmax + vpdmin +ppt_month + ppt_prior_month,
+                   family = binomial(link = "logit"),
+                   data = liz_wide_climate_prop)
+
+summary(fit_binom_1)
+
+stepAIC(fit_binom_1)
+# Step:  AIC=283.13
+# binned_prop ~ tmean + vpdmax
+
+fit_binom_2 <- glm(binned_prop ~ tmean + vpdmax,
+                   family = binomial(link = "logit"),
+                   data = liz_wide_climate_prop)
+
+summary(fit_binom_2) # tmean is most significant so I am just going to build model with tmean
+
+fit_binom_3 <- glm(binned_prop ~ tmean, # .3 - .7 = 1
+                   family = binomial(link = "logit"),
+                   data = liz_wide_climate_prop)
+
+summary(fit_binom_3) 
+# (Intercept) -0.06241    0.64877  -0.096   0.9234  
+# tmean       -0.09610    0.04712  -2.040   0.0414 *
+
+## >> the probability of synchronous feeding is less likely to occur as tmean increases
+
+## step X. assess the model
+
+# interpret the estimated effects as relative odds ratio
+exp(cbind(coef(fit_binom_3), confint(fit_binom_3)))
+#                           2.5 %    97.5 %
+# (Intercept) 0.9394969 0.2682287 3.4355448
+# tmean       0.9083762 0.8249343 0.9928363
+
+# >> Odds ratios that are less than 1 indicate that the event is less likely to occur as the predictor increases.
+
+# it is the estimated amount by which the log odds of cofeeding would decrease if tmean were one unit higher.
+
+#  For logistic regression, this value will be further away from 0 the bigger the difference between the number of observation in each class.. The standard error represents how uncertain we are about this (lower is better).
+
+# The logistic regression coefficients give the change in the log odds of the outcome for a one unit increase in the predictor variable.
+
+# >> For a one unit increase in tmean, the log odds of being synchronous -feedinge event decreases by 0.096
+
+### CIs using profiled log-likelihood
+confint(fit_binom_3)
+#                 2.5 %       97.5 %
+# (Intercept) -1.3159154  1.234175504
+# tmean       -0.1924516 -0.007189485
+
+## We can test for an overall effect of tmean using the wald.test function of the aod library. 
+wald.test(b = coef(fit_binom_3), Sigma = vcov(fit_binom_3), Terms = 2)
+#Chi-squared test:
+# X2 = 4.2, df = 1, P(> X2) = 0.04
+# The chi-squared test statistic of 4.2, with one degrees of freedom is associated with a p-value < 0.05  indicating that the overall effect of tmean  is statistically significant.
+
+# You can also exponentiate the coefficients and interpret them as odds-ratios. R will do this computation for you. To get the exponentiated coefficients, you tell R that you want to exponentiate (exp), and that the object you want to exponentiate is called coefficients and it is part of mylogit (coef(mylogit)). We can use the same logic to get odds ratios and their confidence intervals, by exponentiating the confidence intervals from before. To put it all in one table, we use cbind to bind the coefficients and confidence intervals column-wise.
+
+# odds ratios only
+exp(coef(fit_binom_3)) # by exponentiating the coefficients and interpret them as odds-ratio. 0.9083762 
+
+
+# ## odds ratios and 95% CI
+exp(cbind(OR = coef(fit_binom_3), confint(fit_binom_3)))
+#                   OR     2.5 %    97.5 %
+# (Intercept) 0.9394969 0.2682287 3.4355448
+# tmean       0.9083762 0.8249343 0.9928363
+
+# Now we can say that for a one unit increase in tmean, the odds of synchronous feeding (versus not synchronous) increase by a factor of 0.91
+
+with(fit_binom_3, null.deviance - deviance) # 4.513914
+with(fit_binom_3, df.null - df.residual) # 1
+with(fit_binom_3, pchisq(null.deviance - deviance, df.null - df.residual, lower.tail = FALSE)) # 0.03362023
+
+# our model as a whole fits significantly better than an empty model with chi-square of 4.513914 with 1 degrees of freedom and an associated p-value of less than 0.05
+# ^^ This is sometimes called a likelihood ratio test (the deviance residual is -2*log likelihood). 
+
+#  model’s log likelihood, 
+logLik(fit_binom_3) # -140.1342 (df=2) # The log-likelihood value of a regression model is a way to measure the goodness of fit for a model. The higher the value of the log-likelihood, the better a model fits a dataset. The log-likelihood value for a given model can range from negative infinity to positive infinity.
+
+# estimated coefficient ofr intercept --> the odds of being cofeeding when tmean is zero is 0.9394969. These are odds are very low but lowest tmean is 8.9 so it is the hypothetical value of zero
+exp(-0.06241) # intercept value exponated = 0.9394976
+range(liz_climate_lifestage$tmean, na.rm = TRUE) #8.9
+
+# how do we interpret the coefficent for tmean?
+# log(p/(1-p)) = logit(p)
+# -0.06241  + -0.09610*tmean
+-0.06241  + -0.09610*20 # -1.98441
+-0.06241  + -0.09610*21 # -2.08051
+
+-2.08051 -1.98441 # -4.06492
+
+
+# take difference between 20 and 21 --> -4.06492
+# coefficient for tmean is the diffence in the log odds. for one unit increase in tmean, the expected change in log odds is -4.06492
+
+# Can we translate this change in log odds to the change in odds? Indeed, we can.  Recall that logarithm converts multiplication and division to addition and subtraction. Its inverse, the exponentiation converts addition and subtraction back to multiplication and division. 
+
+-2.08051/ -1.98441 # 1.048427
+
+# So we can say for a one-unit increase in tmean, we expect to see about XX% increase in the odds of synchronous feeding. 
+
+
+# So we can say for a one-unit increase in tmean, the odds of synchronous feeding increases by a factor of 1.05. 
+
+
+
+# compare null model with fit_binom_3
+
+# this test asks where the model with predictors fits significantly better than a model with just an intercept (null model). The test statistic is the difference between residual deviance for the model with predictors (fit_binom_3) and null model. The test statistic is distributed chi-squared with degrees of freedom equal to the difference in degrees of freedom between the current and null model (ie the number of predictor variables in the model)
+
+# difference in deviance for two models (test statistic)
+with(fit_binom_3, null.deviance - deviance) # 4.513914
+
+# degrees of freedom for the difference between two models is equal ot number predictor variablesi n mode
+with(fit_binom_3, df.null - df.residual) # 1
+
+# p-value
+with(fit_binom_3, pchisq(null.deviance - deviance, df.null - df.residual, lower.tail = FALSE)) # p = 0.03362023
+
+# the chi-square of 4.5 with 1 degree of freedom and an associated p-value of less than 0.05 (p = 0.03) tells us that our model as a whole fits significantly better than an empty model. This is sometimes called a likelihood ratio test. To see the mode's log likelihood 
+logLik(fit_binom_3) # -140.1342 (df=2)
+
+
+
+```
+
+
+
+### Supplement
+
+Model building
+
+```{r}
+### step 2: look at dispersion of mean 
+# use reserve as treatment since it represents different climates
+
+with(drag_climate_nolifestage, tapply(count, reserve, function(x) {
+  sprintf("M (SD) = %1.2f (%1.2f)", mean(x), sd(x))
+})) # some reserves worse than others
+
+
+### step 3: fit potential count models
+fit_p <- glm(count ~ reserve,
+                 family = "poisson", 
+               data = drag_climate_nolifestage)
+
+fit_qp <- glm(count ~ reserve,
+                 family = "quasipoisson", 
+               data = drag_climate_nolifestage)
+
+fit_nb <- glm.nb(count ~ reserve,
+               data = drag_climate_nolifestage)
+
+# compare fit models
+AIC(fit_p, fit_qp, fit_nb) # negative binomial is by far a lot better
+
+### step 5: build negbin models with or without random effects
+
+# fit_nb_1_re <- glmer.nb(count ~ tmax + tmean + tmin + vpdmax + vpdmin + ppt_month + (1|month_name),
+#                   data = drag_climate_nolifestage) # does not converge
+
+
+fit_nb_1 <- glm.nb(count ~ tmax + tmean + tmin + vpdmax + vpdmin + ppt_month,
+                   data = drag_climate_nolifestage)
+summary(fit_nb_1) # vpdmin border significant
+
+# since full model won't converge, lets just see what variables could be dropped based on correlation with count
+pairs.panels(drag_climate_nolifestage)
+
+# let's just try temp variables
+fit_nb_1_temp <- glm.nb(count ~ tmax + tmean + tmin,
+                   data = drag_climate_nolifestage)
+summary(fit_nb_1_temp) # tmean has biggest estimate so will keep that
+
+
+# let's just try vpd data
+fit_nb_1_vpd <- glm.nb(count ~ vpdmax + vpdmin,
+                   data = drag_climate_nolifestage)
+summary(fit_nb_1_vpd) # vpdmin sig
+
+
+# let's just try ppt data
+fit_nb_1_ppt <- glm.nb(count ~  ppt+ ppt_month + ppt_prior_month,
+                   data = drag_climate_nolifestage)
+summary(fit_nb_1_ppt) # ppt_prior month border significant 
+
+
+fit_nb_2 <- glm.nb(count ~ tmean + vpdmin + ppt_prior_month,
+                   data = drag_climate_nolifestage)
+summary(fit_nb_2) # vpdmin sign and ppt_prior_month border
+
+fit_nb_2_re <- glmer.nb(count ~ tmean + vpdmin +  ppt_prior_month + (1|month_name),
+                   data = drag_climate_nolifestage)
+summary(fit_nb_2_re) # model sig, but no covariates  sig
+
+fit_nb_3 <- glm.nb(count ~ tmean + vpdmax +  ppt_prior_month,
+                   data = drag_climate_nolifestage) # alteration limit reached
+summary(fit_nb_3) # 
+
+fit_nb_3_re <- glmer.nb(count ~ tmean + vpdmax +  ppt_prior_month + (1|month_name),
+                   data = drag_climate_nolifestage) # alteration limit reached
+summary(fit_nb_3_re) # model sig, but no covariates  sig
+
+fit_nb_4 <- glm.nb(count ~ tmean + vpdmax, ### this was best model based on lowest AIC score
+                   data = drag_climate_nolifestage)
+summary(fit_nb_4) # tmean sig
+
+fit_nb_4_re <- glmer.nb(count ~ tmean + vpdmax + (1|month_name),
+                   data = drag_climate_nolifestage)
+summary(fit_nb_4_re) # model sig, but no covariates  sig
+
+
+AIC(fit_nb_1_ppt, fit_nb_1_temp, fit_nb_1_vpd, fit_nb_2, fit_nb_2_re, fit_nb_3, fit_nb_3_re, fit_nb_4, fit_nb_4_re) # lowest AIC
+
+# fit_nb_2 lowest AIC and realistic (compared to fit_nb_vpd with just vpd variables)
+
+fit_nb_2 <- glm.nb(count ~ tmean + vpdmin + ppt_prior_month,
+                   data = drag_climate_nolifestage)
+summary(fit_nb_2) # vpdmin sign and ppt_prior_month border
+
+# try different variations
+fit_nb_2_2 <- glm.nb(count ~ tmean + vpdmax + ppt_prior_month,
+                   data = drag_climate_nolifestage)
+summary(fit_nb_2_2) # 
+
+
+fit_nb_2_3 <- glm.nb(count ~ tmean + vpdmin + ppt_month,
+                   data = drag_climate_nolifestage)
+summary(fit_nb_2_3)
+
+fit_nb_2_4 <- glm.nb(count ~ tmax + vpdmin + ppt_month,
+                   data = drag_climate_nolifestage)
+summary(fit_nb_2_4)
+
+fit_nb_2_5 <- glm.nb(count ~ tmean + vpdmin,
+                   data = drag_climate_nolifestage)
+summary(fit_nb_2_5) 
+
+
+fit_nb_2_7 <- glm.nb(count ~ tmean + vpdmax,
+                   data = drag_climate_nolifestage)
+summary(fit_nb_2_7) 
+# try with life stage
+fit_nb_2_5_re <- glmer.nb(count ~ tmean + vpdmin + ppt_prior_month + (1|life_stage),
+                   data = drag_climate_lifestage)
+summary(fit_nb_2_5_re)
+
+fit_nb_2_6 <- glm.nb(count ~ tmean + vpdmin + ppt_prior_month + life_stage,
+                   data = drag_climate_lifestage)
+summary(fit_nb_2_6)
+
+fit_nb_2_8 <- glm.nb(count ~ tmean + vpdmax,
+                   data = drag_climate_lifestage)
+summary(fit_nb_2_8) 
+
+
+AIC(fit_nb_2, fit_nb_2_2,fit_nb_2_3,fit_nb_2_4, fit_nb_2_5,fit_nb_2_7, fit_nb_2_6, fit_nb_2_8)
+
+
+
+## okay best subgroup of that
+
+fit_nb_2_5 <- glm.nb(count ~ tmean + vpdmin,
+                   data = drag_climate_nolifestage)
+summary(fit_nb_2_5) 
+
+summary(fit_nb_2)
+
+
+
+fit_nb_2_lifestage <- glm.nb(count ~ tmean + vpdmin + ppt_prior_month,
+                   data = drag_climate_lifestage)
+summary(fit_nb_2_lifestage)
+
+
+AIC(fit_nb_2, fit_nb_5, fit_nb_2_lifestage) # still fit_nb_2 best
+```
+
+```{r}
+install.packages("NCmisc")
+library(NCmisc)
+
+list.functions.in.file(rstudioapi::getSourceEditorContext()$path, alphabetic = TRUE)
+sessionInfo()
+installed.packages(
+)
+```
+
+
+```{r}
+plot_summs(fit_nb_a_1,fit_nb_juv_2,fit_nb_adult_2, scale = TRUE, inner_ci_level = .9,
+           model.names = c("All", "Juv", "Adult")) 
+           
+plot_summs(fit_liz_3_1,fit_liz_4_1, scale = TRUE, inner_ci_level = .9,
+           model.names = c( "L", "N")) # fit_liz_1_1, 
+```
+
