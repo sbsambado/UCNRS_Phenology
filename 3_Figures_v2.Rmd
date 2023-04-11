@@ -1,0 +1,277 @@
+---
+title: "3_Figures"
+author: "sbsambado"
+date: "2022-12-18"
+output: html_document
+---
+
+# Manuscript - "TITLE"
+## Author(s) - S Sambado, A J MacDonald, A Swei, C J Briggs
+
+### Script 3. Data figures
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(readr)
+library(ggplot2)
+library(tidyverse)
+library(rstatix)
+library(MASS)
+library(lme4)
+library(psych)
+library(aod)
+library(car)
+library(ggpubr)
+ 
+drag_climate_lifestage <- read.csv("data/drag_climate_lifestage.csv")
+
+liz_climate_lifestage <- read.csv("data/liz_climate_lifestage.csv")
+
+liz_wide_climate_prop <- read.csv("data/liz_wide_climate_prop.csv")
+```
+
+# Main Text
+
+## Figure 1
+
+Conceptual diagram of phenological patterns within a given tick season. Questing activity – when ticks are seeking a blood meal – is represented by the density curves of juvenile ticks (blue = nymphs, gold = larvae). The sequential order of life stage emergence within a given season is hypothesized to drive enzootic transmission dynamics of tick-borne pathogens (cite: Kurtenbach). The panels represent three scenarios which may amplify the transmission of different pathogens such as (A) horizontal transmission of B. burgdorferi (cite: XXX), (B) synchronous feeding of A. phagocytophilum (cite: Ogden Parasitology), and (C) vertical transmission of B. miyamotoi (cite: Sambado/Sprong).  
+
+## Figure 2
+
+Map of study region showing a latitudinal and climatic location gradient where phenological patterns of I. pacificus was measured. (A) Study locations are situated throughout the University of California Natural Reserve System (UCNRS) with designation of humidity gradient (coastal = teal, inland = brown). We highlight the shift of two important climate variables – (B) mean temperature and (C) max vapor pressure deficit (vpd) at a 800 m resolution – across the peak tick activity season between April through June. Climate values outside of the legend range for temperature and vpd are transparent.
+
+## Figure 3
+
+Log of tick counts (aggregated by reserve per month) against climate variables (A) mean temperature and (B) maximum VPD on the day of tick collection. The black trend line represents a gam fitted model with a weight of tick counts. Scatterplot point colors correspond to individual UCNRS Reserves. 
+
+```{r}
+library(RColorBrewer)
+
+drag_climate_lifestage$reserve <- factor(drag_climate_lifestage$reserve,
+                      levels = c("McLaughlin", "Quail Ridge", "Point Reyes",
+                                 "Fort Ord", "Hastings", 
+                                 "Big Creek", "Rancho Marino",
+                                 "Sedgwick", "Coal Oil Point",
+                                 "Stunt Ranch", "Santa Cruz Island"))
+
+
+mean <- drag_climate_lifestage %>%
+  group_by(tmean, region) %>%
+  summarize(n = mean(count), log_n = log(n))
+
+
+
+tmean <- ggplot(drag_climate_lifestage, aes(x = tmean, y = log(count + 1)), group = reserve) +
+  geom_smooth(method = "gam", se = FALSE, aes(weight = count), color = "black") + # data = mean, aes(x = tmean, y = log_n, fill =region),
+  geom_jitter(size = 3, aes(color = reserve)) +
+  scale_color_brewer(direction = -1, palette = "RdYlGn") +
+  guides(color = FALSE) +
+    theme_bw()+
+    labs(x = "Mean Temperature (°C)", y = "Log of tick counts", color = "Reserve", title = "(A)") +
+    theme(
+          legend.title = element_text(face = 'bold'),
+          axis.title = element_text(face = "bold", size = 14),
+          axis.text.x = element_text(size = 12)) 
+
+vpdmax <- ggplot(drag_climate_lifestage, aes(x = vpdmax, y = log(count + 1)), group = reserve) +
+  geom_smooth(method = "gam", se = FALSE, aes(weight = count), color = "black") + # data = mean, aes(x = tmean, y = log_n, fill =region),
+  geom_jitter(size = 3, aes(color = reserve)) +
+  scale_color_brewer(direction = -1, palette = "RdYlGn") +
+  #guides(color = FALSE) +
+    theme_bw()+
+    labs(x = "Max VPD (kPA)", y = "Log of tick counts", color = "Reserve", title = "(B)") +
+    theme(
+          legend.title = element_text(face = 'bold'),
+          axis.title = element_text(face = "bold", size = 14),
+          axis.text.x = element_text(size = 12),
+          ) 
+
+fig_3_tmeanvpdmax <- ggarrange(tmean, vpdmax + rremove("ylab"), nrow =1, align = "hv",
+          common.legend = TRUE, legend = "bottom")
+
+ggsave(fig_3_tmeanvpdmax, filename = "figures/fig3_tmeanvpdmax_v3.jpeg")
+
+```
+
+## Figure 4
+
+The log of mean counts of I. pacificus from (A) drag cloths and (B) individual lizard burdens aggregated by month. Boxplot colors correspond to tick life stage (green = larva, orange = nymph, yellow = adult).
+
+```{r}
+#scale_fill_manual(values = c("#1B9E77", "#D95F02","goldenrod")
+library(ggbreak)
+drag_climate_lifestage$life_stage <- factor(drag_climate_lifestage$life_stage,
+                                            levels = c("L", "N", "A"),
+                                            labels = c("Larva", "Nymph", "Adult")) 
+
+
+drag_climate_lifestage$month_name <- factor(drag_climate_lifestage$month_name, 
+                                            levels = c("March", "April", "May", "June"))
+
+liz_climate_lifestage$month_name <- factor(liz_climate_lifestage$month_name, 
+                                            levels = c("March", "April", "May", "June"))
+
+
+
+fig_4_drag <- drag_climate_lifestage %>%
+  group_by(reserve, month_name, life_stage) %>%
+  summarise(mean = mean(count)) %>%
+    filter(month_name != "January") %>%
+ggplot(aes(x = month_name, y = log(mean+1), fill = life_stage)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("#1B9E77", "#D95F02","goldenrod")) +
+  theme_bw() +
+  labs(y = "Log of Mean Tick Counts", x = "Month", fill = "Lifestage", title = "(A) Drag Cloth") + # , tag = "Drag Cloth"
+  theme(axis.title = element_text(face = "bold", size = 14),
+        axis.text = element_text(size = 12),
+        legend.title = element_text(size = 14, face = "bold"),
+        legend.text = element_text(size = 12),
+        title = element_text(face = "bold")) 
+
+
+fig_4_liz <- liz_climate_lifestage %>%
+  group_by(reserve, month_name, lifestage) %>%
+  summarise(mean = mean(count)) %>%
+    filter(month_name != "NA") %>%
+ggplot(aes(x = month_name, y = log(mean +1 ), fill = lifestage)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("#1B9E77", "#D95F02","goldenrod")) +
+  theme_bw() +
+  labs(y = "Log of Mean Individual Lizard Burden", x = "Month", fill = "Lifestage", title = "(B) Lizard Burden") + #, tag = "Lizard Burden"
+  theme(axis.title = element_text(face = "bold", size = 14),
+        axis.text = element_text(size = 12),
+        title = element_text(face = "bold")) +
+  guides(fill = FALSE)
+
+library(ggpubr)
+fig_4 <- ggarrange(fig_4_drag +  rremove("xlab") + rremove("ylab"), 
+                   fig_4_liz + rremove("ylab"), 
+          ncol = 1, 
+          common.legend = TRUE, legend = "bottom", 
+          align = "hv")
+
+fig_4_annotated <- annotate_figure(fig_4, left = text_grob("Log of Mean Tick Counts", rot = 90, hjust = .05, vjust = .5, face = "bold", size = 14, just = "centre")) 
+
+#ggsave(fig_4_annotated, file = "figures/fig_4_annotated_v2.jpeg")
+```
+
+## Figure 5
+
+Log of Mean counts of I. pacificus ticks collected via individual lizard burden (A) or drag cloth (B) by month and latitudinal region.
+
+```{r}
+drag_climate_lifestage <- read.csv("data/drag_climate_lifestage.csv")
+
+liz_climate_lifestage <- read.csv("data/liz_climate_lifestage.csv")
+
+drag_climate_lifestage$region <- factor(drag_climate_lifestage$region, 
+                     levels = c("northern", "central", "southern"),
+                     labels = c("Northern", "Central", "Southern"))
+
+drag_climate_lifestage$month_name <- factor(drag_climate_lifestage$month_name,
+                                 levels = c("January", "March", "April", "May", "June"))
+
+drag_climate_lifestage$life_stage <- factor(drag_climate_lifestage$life_stage,
+                                            levels = c("L", "N", "A"),
+                                            labels = c("Larva", "Nymph", "Adult")) 
+
+
+
+liz_climate_lifestage$region <- factor(liz_climate_lifestage$region, 
+                     levels = c("northern", "central", "southern"),
+                     labels = c("Northern", "Central", "Southern"))
+
+liz_climate_lifestage$month_name <- factor(liz_climate_lifestage$month_name,
+                                 levels = c("January", "March", "April", "May", "June"))
+
+liz_climate_lifestage$lifestage <- factor(liz_climate_lifestage$lifestage,
+                                            levels = c("larval", "nymphal"),
+                                            labels = c("Larva", "Nymph")) 
+
+
+drag_month <- 
+  drag_climate_lifestage %>%
+  group_by(life_stage, month_name, region) %>%
+  summarise(mean = mean(count)) %>%
+  filter(month_name != "NA" & month_name != "January") %>%
+  ggplot(aes(x = month_name, y = log(mean+1), fill = life_stage)) +
+  geom_bar(position = "stack", stat = "identity") +
+  facet_wrap(~region, nrow = 3) +
+  scale_fill_manual(values = c("#1B9E77", "#D95F02","goldenrod")) +
+  theme_bw() +
+  labs(y = "Mean Counts", x = "Month", fill = "Lifestage", title = "(B) Drag Cloth") +
+    theme(axis.title = element_text(face = "bold", size = 14),
+        axis.text = element_text(size = 12),
+        title = element_text(face = "bold"),
+        strip.text.x = element_text(face = 'bold', size = 10),
+        strip.background = element_rect(fill = 'gray95'))
+  
+
+liz_month <- liz_climate_lifestage %>%
+  group_by(lifestage, month_name, region) %>%
+  summarise(mean = mean(count)) %>%
+  filter(month_name != "NA") %>%
+  ggplot(aes(x = month_name, y = log(mean+1), fill = lifestage)) +
+  geom_bar(position = "stack", stat = "identity") +
+  facet_wrap(~region, nrow = 3) +
+  scale_fill_manual(values = c("#1B9E77", "#D95F02")) +
+  theme_bw() +
+  labs(y = "Mean Counts", x = "Month", fill = "Lifestage", title = "(A) Lizard Burden") +
+    theme(axis.title = element_text(face = "bold", size = 14),
+        axis.text = element_text(size = 12),
+        title = element_text(face = "bold"),
+        strip.text.x = element_text(face = 'bold', size = 10),
+        strip.background = element_rect(fill = 'gray95')) +
+  guides(fill = FALSE)
+
+fig_5_ggarrange <- ggarrange(liz_month + rremove("ylab") + rremove("xlab") + drag_month + rremove("ylab") + rremove("xlab"),
+          align = "hv",
+          common.legend = TRUE, legend = "bottom")
+
+fig_5_annotated <- annotate_figure(fig_5_ggarrange, left = text_grob("Log of Mean Tick Counts", rot = 90, hjust = .05, vjust = .5, face = "bold", size = 14, just = "centre")) 
+
+ggsave(fig_5_annotated, file = "figures/fig_5_annotated_v2.jpeg")  
+```
+
+
+# Supplement
+Calculating predicted probability
+
+```{r}
+
+liz_wide_climate_prop <- read.csv("data/liz_wide_climate_prop.csv")
+
+
+fit_binom_3 <- glm(binned_prop ~ tmean, # .3 - .7 = 1
+                   family = binomial(link = "logit"),
+                   data = liz_wide_climate_prop)
+
+
+
+newdata1 <- with(liz_wide_climate_prop, data.frame(tmean = mean(tmean, na.rm = TRUE)))
+
+newdata1$rankP <- predict(fit_binom_3, newdata = newdata1, type = "response")
+
+newdata2 <- with(liz_wide_climate_prop, data.frame(tmean = rep(seq(from = 8, to = 30, length.out = 100))))
+
+newdata3 <- cbind(newdata2, predict(fit_binom_3, newdata = newdata2, type = "link", se = TRUE))
+
+newdata3 <- within(newdata3, {
+  PredictedProb <- plogis(fit)
+  LL <- plogis(fit - (1.96*se.fit))
+  UL <- plogis(fit + (1.96*se.fit))
+})
+
+
+pred_prob_binom <- ggplot(newdata3, aes(x = tmean, y = PredictedProb)) +
+  geom_ribbon(aes(ymin = LL, ymax = UL), alpha = .2) +
+  geom_line(size = 2) +
+  theme_bw() +
+  labs(x = "Mean Temperature (°C)", y = "Predicted Probability of Synchronous Feeding") +
+  theme(axis.title = element_text(face = "bold"))
+#ggsave(pred_prob_binom, file = "figures/pred_prob_binom_tmean.jpeg")
+
+```
+

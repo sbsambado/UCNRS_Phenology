@@ -8,7 +8,7 @@ output: html_document
 # Manuscript - "TITLE"
 ## Author(s) - S Sambado, A J MacDonald, A Swei, C J Briggs
 
-### Script 1. Data cleaning
+### Script 2. Data analyses
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
