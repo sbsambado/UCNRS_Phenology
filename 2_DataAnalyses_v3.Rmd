@@ -1,0 +1,478 @@
+---
+title: "2_DataAnlyses_v3"
+author: "Samantha Sambado"
+date: "2024-05-29"
+output: html_document
+---
+
+#Manuscript - Climate associated variations in the within-season dynamics of juvenile ticks in California
+
+##Authors - S Sambado, A J MacDonald, A Swei, C J Briggs
+
+###Script 2. Data analyses
+
+#Main Text
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+## upload necessary packages
+library(readr)
+library(ggplot2)
+library(tidyverse)
+library(rstatix)
+library(MASS)
+library(lme4)
+library(psych)
+library(aod)
+library(car)
+library(ggridges)
+library(ggpubr)
+library(ggbreak)
+
+## upload necessary data
+# data structures good for plotting
+drag_climate_lifestage <- read.csv("data/drag_climate_lifestage.csv")
+liz_climate_lifestage <- read.csv("data/liz_climate_lifestage.csv")
+liz_wide_climate_prop <- read.csv("data/liz_wide_climate_prop.csv")
+
+# data structures good for analysis
+drag_climate_nolifestage <- read.csv("data/drag_climate_nolifestage.csv")
+liz_climate_nolifestage <- read.csv("data/liz_climate_nolifestage.csv")
+
+
+## make sure factors appropriate
+drag_climate_lifestage$life_stage <- factor(drag_climate_lifestage$life_stage,
+                                            levels = c("L", "N", "A"),
+                                            labels = c("Larva", "Nymph", "Adult")) 
+
+
+drag_climate_lifestage$month_name <- factor(drag_climate_lifestage$month_name, 
+                                            levels = c("March", "April", "May", "June"))
+
+liz_climate_lifestage$month_name <- factor(liz_climate_lifestage$month_name, 
+                                            levels = c("March", "April", "May", "June"))
+
+
+
+## additional edits to the data
+# make density
+drag_climate_lifestage$density_100 <- drag_climate_lifestage$count/15 # bc 1500 sampled per reserve per month
+
+
+```
+
+
+###Data Summary
+
+```{r}
+## dragged data
+
+drag_total <- drag_climate_lifestage %>%
+  tally(count) # 895
+
+drag_climate_lifestage %>%
+  group_by(life_stage) %>%
+  tally(count)  # L = 253, N = 89, A = 553
+
+## lizard data
+
+liz_total <- liz_climate_lifestage %>%
+  tally(count) # 1503	
+
+liz_climate_lifestage %>%
+  group_by(lifestage) %>%
+  tally(count) # L = 713, N = 791
+
+
+## ixodes total
+drag_total + liz_total # 2399
+```
+
+###Question 1
+
+(a) What are the regional within-season patterns of tick abundances? (b) Are monthly abundance patterns similar for question (i.e., drag cloth) and attached ticks (i.e., lizard burden) collections methods?
+
+
+```{r}
+###################### (a) Within-season patterns of tick abundances
+
+#### Juvenile ticks on lizards
+
+### Regional patterns - kruskal-wallis
+# test
+liz_climate_lifestage %>% 
+  kruskal.test(count ~ region)
+
+# post-hoc
+liz_climate_lifestage %>%
+  dunn_test(count ~ region) 
+
+### Location patterns - wilcoxon
+# test
+wilcox.test(count ~ location, liz_climate_lifestage) 
+
+# means
+liz_climate_lifestage %>%
+  group_by(location) %>%
+  summarise(mean = mean(count), sd = sd(count))
+
+
+### Effect sizes
+## Entire study
+# Regional patterns
+liz_climate_lifestage %>% kruskal_effsize(count ~ region)
+# Location patterns
+liz_climate_lifestage %>% cohens_d(count ~ location, var.equal = FALSE)
+
+## By month
+## Regional patterns
+#liz_climate_lifestage %>%  filter(month_name == "March") %>% kruskal_effsize(count ~ region)
+liz_climate_lifestage %>%  filter(month_name == "April") %>% kruskal_effsize(count ~ region)
+liz_climate_lifestage %>%  filter(month_name == "May") %>% kruskal_effsize(count ~ region)
+liz_climate_lifestage %>%  filter(month_name == "June") %>% kruskal_effsize(count ~ region)
+
+## Location patterns
+liz_climate_lifestage %>%  filter(month_name == "March") %>% cohens_d(count ~ location, var.equal = FALSE)
+liz_climate_lifestage %>%  filter(month_name == "April") %>% cohens_d(count ~ location, var.equal = FALSE)
+liz_climate_lifestage %>%  filter(month_name == "May") %>% cohens_d(count ~ location, var.equal = FALSE)
+liz_climate_lifestage %>%  filter(month_name == "June") %>% cohens_d(count ~ location, var.equal = FALSE)
+
+```
+
+
+```{r}
+###################### (b) Monthly abundance patterns
+
+#### Drag cloth ticks
+
+### all life stages means
+drag_climate_lifestage %>%
+   group_by(month_numeric) %>%
+   summarize(Mean = mean(count, na.rm = TRUE),
+             Sd = sd(count, na.rm = TRUE))
+
+### individual life stage means
+drag_climate_lifestage %>%
+   group_by(month_numeric, life_stage) %>%
+  filter(life_stage == "L") %>%
+   summarize(Mean = mean(count, na.rm = TRUE),
+             Sd = sd(count, na.rm = TRUE)) 
+
+drag_climate_lifestage %>%
+   group_by(month_numeric, life_stage) %>%
+  filter(life_stage == "N") %>%
+   summarize(Mean = mean(count, na.rm = TRUE),
+             Sd = sd(count, na.rm = TRUE)) 
+
+
+drag_climate_lifestage %>%
+   group_by(month_numeric, life_stage) %>%
+  filter(life_stage == "A") %>%
+   summarize(Mean = mean(count, na.rm = TRUE),
+             Sd = sd(count, na.rm = TRUE)) 
+
+
+
+#### Juvenile ticks on lizards
+
+### all life stages means
+liz_climate_lifestage %>%
+   group_by(month_numeric) %>%
+   summarize(Mean = mean(count, na.rm = TRUE),
+             Sd = sd(count, na.rm = TRUE))
+
+### individual life stage means
+liz_climate_lifestage %>%
+   group_by(month_numeric) %>%
+  filter(lifestage == "larval") %>%
+   summarize(Mean = mean(count, na.rm = TRUE),
+             Sd = sd(count, na.rm = TRUE)) 
+
+liz_climate_lifestage %>%
+   group_by(month_numeric) %>%
+  filter(lifestage == "nymphal") %>%
+   summarize(Mean = mean(count, na.rm = TRUE),
+             Sd = sd(count, na.rm = TRUE)) 
+
+
+```
+
+
+###Question 2
+How does within-season tick abundances respond to temperature (north to south) and/or humidity (coastal to inland) gradients?
+
+```{r}
+###################### lizard - larvae
+liz_climate_lifestage_larv <- liz_climate_lifestage %>%
+  filter(lifestage == "larval")
+
+
+## full model
+fit_liz_3_1 <- glm.nb(count ~ tmean + tmin + vpdmax + ppt_month,
+                      data = liz_climate_lifestage_larv)
+
+summary(fit_liz_3_1) 
+
+vif(fit_liz_3_1)
+
+## slimmed model
+fit_liz_3_2 <- glmer.nb(count ~ tmean + vpdmax  + (1|reserve), # less collinear of a model
+                      data = liz_climate_lifestage_larv)
+
+summary(fit_liz_3_2) 
+
+
+vif(fit_liz_3_2)
+
+
+###################### lizard - nymphs
+liz_climate_lifestage_nymp <- liz_climate_lifestage %>%
+  filter(lifestage != "larval")
+
+## full model 
+fit_liz_4_0 <- glm.nb(count ~ tmean + tmin + vpdmax + ppt_month,
+                      data = liz_climate_lifestage_nymp)
+summary(fit_liz_4_0)
+
+fit_liz_4_1 <- glm.nb(count ~ tmean + vpdmin,  # tmax + 
+                      data = liz_climate_lifestage_nymp)
+
+summary(fit_liz_4_1)
+vif(fit_liz_4_1)
+
+
+
+## slimmed model
+fit_liz_4_2 <- glmer.nb(count ~   tmean + vpdmin + (1|reserve),  # less collinear of a model
+                      data = liz_climate_lifestage_nymp)
+
+summary(fit_liz_4_2)
+
+```
+
+
+
+
+###Question 3
+Do larvae and nymphs feed synchronously on individual hosts? If so, how frequently, and are there climatic variables associated with synchronous feeding patterns?
+
+
+```{r}
+
+## step 1. format data 
+# make synchrony outcome
+sync_data <- liz_climate_lifestage %>% 
+  filter(count >=0) %>% 
+  pivot_wider(names_from = lifestage, values_from = count) %>% 
+  group_by(reserve, lizard_num, month_numeric) %>% 
+  summarise(larvae = sum(larval, na.rm = T),
+            nymphs = sum(nymphal, na.rm = T)) %>% 
+  mutate(sync = 
+           case_when(
+             larvae >0 & nymphs > 0 ~ 1,
+             TRUE ~ 0
+           ))
+sync_data$sync <- factor(sync_data$sync) 
+
+
+
+## merge sync data with climate
+# make just important climate with lizard data
+liz_climate <- liz_climate_lifestage %>% 
+  group_by(reserve,lizard_num, month_numeric) %>% 
+  dplyr::select(ppt, tmax, tmean, tmin, vpdmax, vpdmin, ppt_month, ppt_prior_month) %>% 
+  unique()
+
+# merge both data sets
+sync_climate <- merge(sync_data, liz_climate, by = c("reserve", "lizard_num", "month_numeric"))
+
+# make sure data type is correct
+sync_climate$reserve <- factor(sync_climate$reserve,
+                               levels = c("Stunt Ranch",
+                               "McLaughlin", "Quail Ridge", "Point Reyes",
+                                  "Fort Ord", "Hastings", 
+                                  "Big Creek", "Rancho Marino",
+                                   "Santa Cruz Island",
+                                  "Sedgwick", "Coal Oil Point"))
+
+# remove COP because there were only nymphs attached to lizards
+sync_climate2 <- sync_climate %>% 
+  filter(reserve != "Coal Oil Point")
+
+
+```
+
+
+```{r}
+
+## step 2. run models
+logit <- glm(sync ~ tmean + reserve, data = sync_climate2, family = "binomial")
+summary(logit)
+# every 1 unit change in tmean, the log odds of synchrony decreases by -0.1277
+
+# calculate CIs
+confint(logit)
+# CIs using profiled log-likelihood
+
+# odds ratio and 95% CI
+exp(cbind(OR = coef(logit), confint(logit)))
+
+# with 1 unit incrase in tmean, odds of sync increase by a factor of 0.88
+exp(.88)
+
+
+### odds ratio = -0.12771
+exp(-0.12771) # 0.8801086
+exp(coef(logit))
+exp(logit$coefficients)/(1+exp(logit$coefficients))
+
+
+
+# overall effect of reserve using wald.test
+wald.test(b = coef(logit), Sigma = vcov(logit), Terms = 3:10)
+# X2 = 31.6, df = 8, P(> X2) = 0.00011
+# The chi-square test statistics of 31.6 with 9 degrees of free is associated with p-value of 0.00011 indicating the the overall effect of reserve is statistically significant
+
+```
+#Supporting Information
+
+##Covariate correlations
+```{r}
+# check correlation
+climate_sub <- drag_climate_nolifestage %>%
+  dplyr::select( ppt:ppt_prior_month)
+
+pairs.panels(climate_sub)
+```
+
+##Fitting tick-climate models
+```{r}
+###################### Drag cloth method
+
+## Drag -- Adult
+
+drag_climate_lifestage_adult <- drag_climate_lifestage %>%
+  filter(life_stage == "A")
+
+## full model
+
+fit_nb_adult_1 <- glm.nb(count ~ tmax + tmean + tmin + vpdmax + vpdmin +ppt_month + ppt_prior_month,
+                   data = drag_climate_lifestage_adult)
+
+summary(fit_nb_adult_1) # vpdmin > vpdmax
+
+stepAIC(fit_nb_adult_1)
+
+## slimmed model
+fit_nb_adult_3 <- glmer.nb(count ~ tmean + vpdmax + (1|reserve), # build less collinear model
+                         data = drag_climate_lifestage_adult)
+summary(fit_nb_adult_3)
+
+
+### Drag -- Nymph
+
+drag_climate_lifestage_nymph <- drag_climate_lifestage %>%
+  filter(life_stage == "N")
+
+## full model
+
+fit_nb_nymph_1 <- glm.nb(count ~ tmax + tmean + tmin + vpdmax + vpdmin +ppt_month + ppt_prior_month,
+                   data = drag_climate_lifestage_nymph)
+
+summary(fit_nb_nymph_1) # 
+
+stepAIC(fit_nb_nymph_1)
+
+## slimmed model
+fit_nb_nymph_3 <- glmer.nb(count ~ ppt_month + (1|reserve), # build less collinear model
+                         data = drag_climate_lifestage_nymph)
+summary(fit_nb_nymph_3)
+
+
+### Drag -- Larvae
+
+drag_climate_lifestage_larva <- drag_climate_lifestage %>%
+  filter(life_stage == "L")
+
+## full model
+
+fit_nb_larva_1 <- glm.nb(count ~ tmax + tmean + tmin + vpdmax + vpdmin +ppt_month + ppt_prior_month,
+                   data = drag_climate_lifestage_larva)
+
+summary(fit_nb_larva_1) # ppt prior month
+
+step(fit_nb_larva_1)
+
+## slimmed model
+fit_nb_larva_2 <- glmer.nb(count ~ ppt_prior_month + (1|reserve), # build less collinear model
+                         data = drag_climate_lifestage_larva)
+summary(fit_nb_larva_2)
+
+###################### Lizard burden method
+
+## Lizard -- Larvae
+
+
+liz_climate_lifestage_larv <- liz_climate_lifestage %>%
+  filter(lifestage == "larval")
+
+
+## full model
+fit_liz_3_1 <- glm.nb(count ~ tmean + tmin + vpdmax + ppt_month,
+                      data = liz_climate_lifestage_larv)
+
+summary(fit_liz_3_1) 
+
+vif(fit_liz_3_1)
+
+stepAIC(fit_liz_3_1)
+
+## slimmed model
+
+fit_liz_3_2 <- glmer.nb(count ~ tmean + vpdmax  + (1|reserve), # less collinear of a model
+                      data = liz_climate_lifestage_larv)
+
+summary(fit_liz_3_2) 
+
+
+
+
+
+## Lizard -- Nymph
+
+
+liz_climate_lifestage_nymp <- liz_climate_lifestage %>%
+  filter(lifestage != "larval")
+
+## full model 
+fit_liz_4_0 <- glm.nb(count ~ tmean + tmin + vpdmax + ppt_month,
+                      data = liz_climate_lifestage_nymp)
+summary(fit_liz_4_0)
+
+stepAIC(fit_liz_4_0)
+
+fit_liz_4_1 <- glm.nb(count ~ tmean + vpdmin,  # tmax + 
+                      data = liz_climate_lifestage_nymp)
+
+summary(fit_liz_4_1)
+vif(fit_liz_4_1)
+
+## slimmed model
+fit_liz_4_2 <- glmer.nb(count ~   tmean + vpdmin + (1|reserve),  # less collinear of a model
+                      data = liz_climate_lifestage_nymp)
+
+summary(fit_liz_4_2)
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
