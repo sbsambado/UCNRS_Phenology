@@ -1,14 +1,15 @@
 ---
-title: "3_Figures"
+title: "2_Figures"
 author: "sbsambado"
 date: "2022-12-18"
 output: html_document
 ---
 
-# Manuscript - "TITLE"
-## Author(s) - S Sambado, A J MacDonald, A Swei, C J Briggs
+#Manuscript - Climate associated variations in the within-season dynamics of juvenile ticks in California
 
-### Script 3. Data figures
+##Authors - S Sambado, A J MacDonald, A Swei, C J Briggs
+
+###Script 2. Data figures
 
 
 ```{r setup, include=FALSE}
