@@ -6,7 +6,7 @@ Code to run analyses and make figures for the following manuscript:
 
 **Authors** Samantha Sambado, Andrew J MacDonald, Andrea Swei, and Cheryl J Briggs
 
-**Keywords** Vector-borne diseases, Lyme disease, macro-parasite, micro-parasite, Ixodes spp., Borrelia spp., Trichuris spp.
+**Keywords** host-seeking; phenology; Ixodes pacificus; Ixodes spp. ticks; latitudinal gradient; western-fence lizard
 
 **Location** Field work took place across the University of California Natural Reserve System at 11 field stations ranging from Clear Lake County to Los Angeles County
 
