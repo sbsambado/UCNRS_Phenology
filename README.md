@@ -14,8 +14,6 @@ Code to run analyses and make figures for the following manuscript:
 doi:
 
 
-Code on this github is for 1) regression analyses and 2) figure making
-
 How to reproduce code
 
 + download data from data folder
