@@ -11,8 +11,9 @@ Code to run analyses and make figures for the following manuscript:
 **Location** Field work took place across the University of California Natural Reserve System at 11 field stations ranging from Clear Lake County to Los Angeles County
 
 
-doi:
+paper doi:
 
+data dryad doi: https://doi.org/doi:10.5061/dryad.0p2ngf29d
 
 How to reproduce code
 
