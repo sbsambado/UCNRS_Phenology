@@ -18,6 +18,6 @@ How to reproduce code
 
 + download data from data folder
 + run script 1_DataAnalyses_v3.Rmd
-+ run script 2_Figures_v2.Rmd
++ run script 2_Figures_v3.Rmd
 
 email sbsambado@ucsb.edu with any comments or questions
