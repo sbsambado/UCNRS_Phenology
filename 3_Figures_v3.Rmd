@@ -1,0 +1,801 @@
+---
+title: "3_Figures"
+author: "sbsambado"
+date: "2022-12-18"
+output: html_document
+---
+
+# Manuscript - Climate-associated variation in the within-season dynamics of juvenile ticks in California
+## Author(s) - S Sambado, A J MacDonald, A Swei, C J Briggs
+
+### Script 3. Data figures
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+## upload necessary packages
+library(readr)
+library(ggplot2)
+library(tidyverse)
+library(rstatix)
+library(MASS)
+library(lme4)
+library(psych)
+library(aod)
+library(car)
+library(ggpubr)
+library(RColorBrewer)
+library(ggridges)
+library(grid)
+library(ggmap)
+library(ggrepel)
+library(ggspatial)
+ 
+## upload necessary data
+# tick data
+drag_climate_lifestage <- read.csv("data/drag_climate_lifestage.csv")
+
+liz_climate_lifestage <- read.csv("data/liz_climate_lifestage.csv")
+
+liz_wide_climate_prop <- read.csv("data/liz_wide_climate_prop.csv")
+
+drag_climate_nolifestage <- read.csv("data/drag_climate_nolifestage.csv")
+
+liz_climate_nolifestage <- read.csv("data/liz_climate_nolifestage.csv")
+
+# site info
+coords <- read.csv("data/ucnrs_reserve_coords.csv")
+
+
+## labeler for data
+location_names <- c('coastal' = "Coastal",
+                    'inland' = "Inland")
+
+region_names <- c("northern" = "Northern", 
+                  "central" = "Central",
+                  "southern" = "Southern")
+
+```
+
+Format data
+```{r}
+## correct factor levels
+
+# drag ticks
+drag_climate_lifestage$life_stage <- factor(drag_climate_lifestage$life_stage,
+                                            levels = c("L", "N", "A"),
+                                            labels = c("Larva", "Nymph", "Adult")) 
+drag_climate_lifestage$month_name <- factor(drag_climate_lifestage$month_name, 
+                                            levels = c("January", "March", "April", "May", "June"))
+
+# lizard ticks
+liz_climate_lifestage$month_name <- factor(liz_climate_lifestage$month_name, 
+                                            levels = c("March", "April", "May", "June"))
+
+liz_climate_lifestage$region <- factor(liz_climate_lifestage$region,
+                                       levels = c("northern", "central", "southern"))  
+
+## make sync data
+sync_data <- liz_climate_lifestage %>% 
+  filter(count >=0) %>% 
+  pivot_wider(names_from = lifestage, values_from = count) %>% 
+  group_by(reserve, lizard_num, month_numeric) %>% 
+  summarise(larvae = sum(larval, na.rm = T),
+            nymphs = sum(nymphal, na.rm = T)) %>% 
+  mutate(sync = 
+           case_when(
+             larvae >0 & nymphs > 0 ~ 1,
+             TRUE ~ 0
+           ))
+sync_data$sync <- factor(sync_data$sync) 
+
+```
+
+# Main Text
+
+## Figure 1
+
+Conceptual Figure. Phenological patterns of juvenile ticks conceptual diagram. Questing activity is represented by the density curves of ticks (blue = nymphs, gold = larvae). The sequential order of life stage emergence within a given season is hypothesized to drive enzootic transmission dynamics of tick-borne pathogens. The panels represent three scenarios which may amplify the transmission of different pathogens such as (a) horizontal transmission of B. burgdorferi, (b) synchronous feeding of A. phagocytophilum, and (c) vertical transmission of B. miyamotoi. 
+
+## Figure 2
+
+Map of study region illustrating the latitudinal and climatic gradients captured by sampling. (a) Study locations are situated throughout the University of California Natural Reserve System with designation of humidity gradient (coastal = teal, inland = brown). We highlight the shift of two important climate variables (b) mean temperature and (c) max vapor pressure deficit (vpd) across the peak tick season (April – June). 
+
+Panel A - make insert of california 
+```{r}
+# add site abbreviations
+ca_coords <- coords %>% 
+  dplyr::select(site, latitude, longitude, location) %>% 
+  unique() %>% 
+  rename(lon = longitude,
+         lat = latitude) %>% 
+  filter(!is.na(lat)) %>% 
+  mutate(abbrev = case_when(site == "McLaughlin" ~ "ML",
+                          site == "Quail Ridge" ~ "QR", 
+                          site == "Point Reyes" ~ "PR", 
+                          site == "Fort Ord" ~ "FO", 
+                          site == "Hastings" ~ "HT", 
+                          site == "Big Creek" ~ "BC", 
+                          site == "Rancho Marino" ~ "RM", 
+                          site == "Sedgwick" ~ "SD", 
+                          site == "Coal Oil Point" ~ "CO", 
+                          site == "Stunt Ranch" ~ "SR", 
+                          site == "Santa Cruz Island" ~ "SC", 
+                          TRUE ~ site
+                          ))
+
+# make targeted coordinates
+ca_location <- with(ca_coords,
+                    c(lon = median(lon, na.rm = TRUE)+.2,
+                      lat = median(lat, na.rm = TRUE)+.3)) 
+
+
+# register google kep for ggmap
+#register_google(key = "AIzaSyC7-ux51sDeZvS8YxNxOkCZ-5_hMYpfAvY", write = TRUE)
+
+
+# create base map of california
+ca_base <- get_map(location = ca_location,
+                   zoom = 7, 
+                   maptype = "satellite")
+
+
+# plot CA map with sites
+ca_map <- 
+ggmap(ca_base) +
+  theme(legend.direction = "vertical",
+        legend.position = "top",
+        legend.key = element_rect(fill = "white"),legend.title.align = .5,
+        legend.title = element_text(face = "bold"),
+        axis.title = element_text(face = "bold", size = 12),
+        title = element_text(face = "bold", size = 14)) +
+  guides(color = FALSE, fill = FALSE) +
+  labs(x = "Longitude", y = "Latitude") +
+  #geom_text_repel(data = ca_coords, aes(label = site),
+  #                box.padding = .8, max.overlaps = Inf) +
+  geom_label_repel(data = ca_coords, aes(label = site),
+                   box.padding = .2, label.padding = .12,
+                   label.r = .1,
+                   max.overlaps = Inf,  size = 4) +
+  geom_point(data = ca_coords,
+             aes(x = lon, y = lat, fill = location),color = "black", size = 2.5, pch = 21) +
+  scale_fill_manual(values = c("#94d2bd", "#ddb892")) +
+  annotation_scale(location = "bl", pad_y = unit(0.5,"cm"), text_face = "bold", 
+                   bar_cols = c("white", "grey"), text_col = "white") +
+  coord_sf(crs = 4326)+
+  annotation_north_arrow(location = "bl", pad_y = unit(0.82,"cm")) 
+
+#ggsave(ca_map, file = "figures/ca_map_sites.jpeg", dpi = 600)
+```
+
+Panel B & C -- CA climate data
+
+First, download prism data
+```{r}
+prism_set_dl_dir("~/prismtmp")
+
+# pull from prism()
+# get_prism_monthlys(type = "tmean",
+#                    year = 2021,
+#                    mon = 4:6,
+#                    keepZip = FALSE)
+# 
+# get_prism_monthlys(type = "vpdmax",
+#                    year = 2021,
+#                    mon = 4:6,
+#                    keepZip = FALSE)
+
+# save to space
+prism_archive_ls()
+pd_to_file(prism_archive_ls())
+
+### FORMAT TMAX
+## april
+tmean_a <- prism_archive_subset("tmean", "monthly", years = 2021, mon = 4)
+ls_prism_data(name = TRUE)
+#new_file_a <- c(1)
+RS_a_tmean <- prism_stack(ls_prism_data()[1,1]) # change first number 1-6
+to_slice_a_tmean <- grep("_202104", RS_a_tmean[,1], value = T)
+df_a_tmean <- data.frame(rasterToPoints(RS_a_tmean))
+names(df_a_tmean)[1:3] <- c("lon", "lat", "value")
+df_a_tmean$month <- "April"
+df_a_tmean$type <- "Mean Temperature (C)"
+
+## may
+tmean_m <- prism_archive_subset("tmean", "monthly", years = 2021, mon = 5)
+ls_prism_data(name = TRUE)
+#new_file_a <- c(1)
+RS_m_tmean <- prism_stack(ls_prism_data()[2,1]) # change first number 1-6
+df_m_tmean <- data.frame(rasterToPoints(RS_m_tmean))
+names(df_m_tmean)[1:3] <- c("lon", "lat", "value")
+df_m_tmean$month <- "May"
+df_m_tmean$type <- "Mean Temperature (C)"
+
+## june
+tmean_j <- prism_archive_subset("tmean", "monthly", years = 2021, mon = 6)
+ls_prism_data(name = TRUE)
+#new_file_a <- c(1)
+RS_j_tmean <- prism_stack(ls_prism_data()[3,1]) # change first number 1-6
+df_j_tmean <- data.frame(rasterToPoints(RS_j_tmean))
+names(df_j_tmean)[1:3] <- c("lon", "lat", "value")
+df_j_tmean$month <- "June"
+df_j_tmean$type <- "Mean Temperature (C)"
+
+## merge all temp together
+tmean_2021 <- rbind(df_a_tmean, df_m_tmean,df_j_tmean)
+
+
+
+### FORMAT VPDMAX
+
+## april
+vpdmax_a <- prism_archive_subset("vpdmax", "monthly", years = 2021, mon = 4)
+ls_prism_data(name = TRUE)
+RS_a_vpdmax <- prism_stack(ls_prism_data()[4,1]) # change first number 1-6
+df_a_vpdmax <- data.frame(rasterToPoints(RS_a_vpdmax))
+names(df_a_vpdmax)[1:3] <- c("lon", "lat", "value")
+df_a_vpdmax$month <- "April"
+df_a_vpdmax$type <- "Max VPD (kPA)"
+
+ggplot() +
+   geom_raster(data = df_a_vpdmax, aes(x = lon, y = lat, fill = value)) +
+   theme_nothing()
+
+
+## may
+vpdmax_m <- prism_archive_subset("vpdmax", "monthly", years = 2021, mon = 5)
+ls_prism_data(name = TRUE)
+#new_file_a <- c(1)
+RS_m_vpdmax <- prism_stack(ls_prism_data()[5,1]) # change first number 1-6
+df_m_vpdmax <- data.frame(rasterToPoints(RS_m_vpdmax))
+names(df_m_vpdmax)[1:3] <- c("lon", "lat", "value")
+df_m_vpdmax$month <- "May"
+df_m_vpdmax$type <- "Max VPD (kPA)"
+
+## june
+vpdmax_j <- prism_archive_subset("vpdmax", "monthly", years = 2021, mon = 6)
+ls_prism_data(name = TRUE)
+#new_file_a <- c(1)
+RS_j_vpdmax <- prism_stack(ls_prism_data()[6,1]) # change first number 1-6
+df_j_vpdmax <- data.frame(rasterToPoints(RS_j_vpdmax))
+names(df_j_vpdmax)[1:3] <- c("lon", "lat", "value")
+df_j_vpdmax$month <- "June"
+df_j_vpdmax$type <- "Max VPD (kPA)"
+
+## merge all temp together
+vpdmax_2021 <- rbind(df_a_vpdmax, df_m_vpdmax,df_j_vpdmax)
+
+```
+
+Next, make map of climate data
+```{r}
+### TMEAN 
+
+# set limits
+minLat = 33.5 
+maxLat = 39.5 
+minLon = -123.5 
+maxLon = -118 
+
+# filter dataframe to limits
+month.df.tmean <- tmean_2021 %>% filter(minLat <lat, lat <maxLat,
+                                   minLon<lon, lon < maxLon) %>% 
+  mutate(month = factor(month,
+                           labels = c("April", "May","June"),
+                           levels = c("April", "May","June")))
+
+# make TMEAN map
+tmean_2021_map <- 
+ggplot() +
+  geom_raster(data = month.df.tmean, aes(x = lon, y = lat, fill = value)) +
+  theme_nothing(legend = TRUE) +
+  scale_fill_distiller(palette = "Spectral")+
+  coord_fixed(ratio = 1.3) +
+  geom_point(data = ca_coords, aes(x = lon, y = lat), size = 2.5) +
+  geom_text(data = ca_coords,aes(x = lon, y = lat, label = abbrev), 
+             check_overlap = T, nudge_x = 0.5, nudge_y = .2,
+            parse = TRUE, size = 4.5, face = "bold")+
+  facet_wrap(~month, ) +
+  labs(fill = "Mean Temperature (°C)")+
+  theme(legend.position = "bottom",
+        legend.title = element_text(face = "bold", vjust = .8),
+        strip.background = element_rect(color = "white", fill = "white"),
+        strip.text = element_text(face = "bold", size = 14, vjust = -.5))
+#ggsave(tmean_2021_map, file = "figures/tmean_2021_map.jpeg", dpi = 600)
+
+
+### VPD MAX
+# set limits
+minLat = 33.5 #34.00138
+maxLat = 39.5 #38.87289
+minLon = -123.5 #-122.7318
+maxLon = -118 #-118.656
+
+# filter dataframe to limits
+month.df.vpdmax <- vpdmax_2021 %>% filter(minLat <lat, lat <maxLat,
+                                   minLon<lon, lon < maxLon) %>% 
+  mutate(month = factor(month,
+                           labels = c("April", "May","June"),
+                           levels = c("April", "May","June")))
+
+# make VPDMAX
+vpdmax_2021_map <- 
+ggplot() +
+  geom_raster(data = month.df.vpdmax, aes(x = lon, y = lat, fill = value)) +
+  theme_nothing(legend = TRUE) +
+  scale_fill_distiller(palette = "Spectral", limits = c(0,45), na.value = "#d53e4f")+
+  coord_fixed(ratio = 1.3) +
+  geom_point(data = ca_coords, aes(x = lon, y = lat), size = 2.5) +
+  geom_text(data = ca_coords,aes(x = lon, y = lat, label = abbrev), 
+             check_overlap = T, nudge_x = 0.5, nudge_y = .2,
+            parse = TRUE, size = 4.5, face = "bold")+
+  facet_wrap(~month, ) +
+  labs(fill = "Max VPD (kPA)")+
+  theme(legend.position = "bottom",
+        legend.title = element_text(face = "bold", vjust = .8),
+        strip.background = element_rect(color = "white", fill = "white"),
+        strip.text = element_text(face = "bold", size = 14, vjust = -.5))
+#ggsave(vpdmax_2021_map, file = "figures/vpdmax_2021_map.jpeg", dpi = 600)
+
+```
+
+
+## Figure 3
+
+Abundance patterns for (a) attached and (b) questing I. pacificus ticks vary by collection methods. Attached ticks represent the mean tick burden on an individual lizard per reserve per month. The box spans the first and third quartiles, the median is marked by a thick horizontal line, whisker represent the minimum and maximum values excluding outliers, and solid circles represent outliers. 
+
+```{r}
+fig_3_drag <- drag_climate_lifestage %>%
+  group_by(reserve, month_name, life_stage) %>%
+  summarise(mean = mean(count)) %>%
+    filter(month_name != "January") %>%
+ggplot(aes(x = month_name, y = mean, fill = life_stage)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c( "#0077bb", "#ee7733", "#bbbbbb")) +
+  theme_bw() +
+  labs(y = "Log of Mean Tick Counts", x = "Month", fill = "Life stage", title = "Drag Cloth") + # , tag = "Drag Cloth"
+  theme(axis.title = element_text(face = "bold", size = 14),
+        axis.text = element_text(size = 12),
+        legend.title = element_text(size = 14, face = "bold"),
+        legend.text = element_text(size = 12),
+        title = element_text(face = "bold"))  +
+  scale_y_log10()
+
+
+fig_3_liz <- liz_climate_lifestage %>%
+  group_by(reserve, month_name, lifestage) %>%
+  summarise(mean = mean(count)) %>%
+    filter(month_name != "NA") %>%
+ggplot(aes(x = month_name, y = mean, fill = lifestage)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c( "#0077bb", "#ee7733", "#bbbbbb")) +
+  theme_bw() +
+  labs(y = "Log of Mean Individual Lizard Burden", x = "Month", fill = "Lifestage", title = "Lizard Burden") + #, tag = "Lizard Burden"
+  theme(axis.title = element_text(face = "bold", size = 14),
+        axis.text = element_text(size = 12),
+        title = element_text(face = "bold")) +
+  guides(fill = FALSE) +
+  scale_y_log10()
+
+
+
+fig_3 <- ggarrange(fig_3_liz +  rremove("xlab") + rremove("ylab"), 
+                   fig_3_drag + rremove("ylab"), 
+          ncol = 1, 
+          common.legend = TRUE, legend = "bottom", 
+          align = "hv", labels = c("A", "B"))
+
+fig_3_annotated <- annotate_figure(fig_3, left = text_grob("log10(Mean Tick Counts)", rot = 90, face = "bold", size = 14, just = "center")) 
+
+#ggsave(fig_3_annotated, file = "figures/fig_3_annotated_v6.jpeg")
+
+```
+
+
+
+## Figure 4
+
+Regional within-season patterns of juvenile I. pacificus ticks vary by (a) latitudinal (i.e., temperature) and (b) climatic (i.e., humidity) gradients. Upper error-bars (mean + sd) are presented. 
+
+```{r}
+# upper error bars
+liz_loc <- 
+  liz_climate_lifestage %>%
+  group_by(month_name, location) %>%
+  summarise(mean = mean(count),
+            sd = sd(count),
+            ymin = mean-sd,
+            ymax = mean+sd) %>%
+  filter(month_name != "NA") %>%
+  ggplot(aes(x = month_name, y = mean, fill = location)) +
+  geom_errorbar(aes(ymin = mean, ymax = ymax), color = "grey50",width = .2, size = .8)+
+  geom_bar( position = "stack", stat = "identity", color = "grey10") +
+  facet_wrap(~location, nrow = 2, scale = "free_y", labeller = as_labeller(location_names)) +
+  scale_fill_manual(values = c("#6699cc","#997700")) +
+  theme_bw() +
+  labs(y = "Mean Burden Counts", x = "Month") + # , title = "(A) Lizard Burden"
+    theme(axis.title = element_text(face = "bold", size = 14),
+        axis.text = element_text(size = 12),
+        title = element_text(face = "bold"),
+        strip.text.x = element_text(face = 'bold', size = 10),
+        strip.background = element_rect(fill = 'gray95')) +
+  guides(fill = FALSE) 
+
+
+
+liz_reg <- 
+liz_climate_lifestage %>%
+  group_by(month_name, region) %>%
+  summarise(mean = mean(count),
+            sd = sd(count),
+            ymin = mean-sd,
+            ymax = mean+sd) %>%
+  filter(month_name != "NA") %>%
+  ggplot(aes(x = month_name, y = mean, fill = region)) +
+  geom_errorbar(aes(ymin = mean, ymax = ymax),color = "grey50", width = .2, size = .8)+
+  geom_bar(position = "stack", stat = "identity", color = "grey10") +
+  facet_wrap(~region, nrow = 3, scale = "free_y", labeller = as_labeller(region_names)) +
+  scale_fill_manual(values = c("#004488","#ddaa33","#bb5566" )) +
+  theme_bw() +
+  labs(y = "Mean Lizard Burden Counts", x = "Month") +
+    theme(axis.title = element_text(face = "bold", size = 14),
+        axis.text = element_text(size = 12),
+        title = element_text(face = "bold"),
+        strip.text.x = element_text(face = 'bold', size = 10),
+        strip.background = element_rect(fill = 'gray95')) +
+  guides(fill = FALSE)
+
+fig_4_annotated <- ggarrange(liz_reg + rremove("xlab"), liz_loc + rremove("ylab") + rremove("xlab"),
+          align = "hv",
+           labels = c("A", "B"))
+
+#ggsave(fig_4_annotated, file = "figures/fig_4_annotated_v3.jpeg")
+```
+
+
+
+## Figure 5
+Individual reserves, which represent a unique combination of temperature and humidity, vary in their within-season dynamics of juvenile I. pacificus from attached lizards. Within-season dynamics such as (a) duration of activity, (b) emergence rate, (c) proportion of synchrony events, and (d) sequential pattern are different for each reserve. (a) Density curves represent the monthly abundance of juvenile ticks (top graph = larvae, bottom graph = nymphs) during the sampling season (March-June) at each reserve. (b) Cumulative proportion represents the emergence rate of juvenile ticks by reserve during the sampling season. Color of the reserves represent the descending order of mean temperature in March for each reserve (i.e., highest mean temperature in March was CO, lowest was FO). (c) The proportion of synchronous events (i.e. when both larva and nymph feed on an individual lizard) at each reserve during the sampling season. (d) The sequential order of life stages emerging (i = larvae first, ii = synchrony, iii = nymphs first).
+
+Panel A - Duration
+
+```{r}
+## organize data
+ liz_climate_lifestage2 <- liz_climate_lifestage
+
+liz_climate_lifestage2$reserve <- factor(liz_climate_lifestage2$reserve,
+                        levels = c("McLaughlin", "Quail Ridge", "Point Reyes",
+                                   "Fort Ord", "Hastings", 
+                                   "Big Creek", "Rancho Marino",
+                                    "Santa Cruz Island",
+                                  "Sedgwick", "Coal Oil Point",
+                                   "Stunt Ranch"))
+ 
+
+# plot
+geom_ridge_larvae <-  
+liz_climate_lifestage2 %>%
+    filter(lifestage == "larval") %>% 
+  drop_na() %>% 
+  uncount(count) %>% 
+  filter(reserve != "NA" ) %>% #& lifestage =="Nymphs"
+  add_row(reserve = "Coal Oil Point") %>% 
+  mutate(reserve = factor(reserve,
+                      levels = c("McLaughlin", "Quail Ridge", "Point Reyes",
+                                 "Fort Ord", "Hastings", 
+                                 "Big Creek", "Rancho Marino",
+                                  "Santa Cruz Island",
+                                 "Sedgwick", "Coal Oil Point",
+                                 "Stunt Ranch"))) %>% 
+  ggplot(aes(x = month_numeric, y = fct_rev(reserve), fill = reserve, group = reserve)) +
+  stat_density_ridges(geom = "density_ridges_gradient", 
+                      bandwidth = .35,
+                      rel_min_height = .0001,
+                      alpha = .99,
+                      calc_ecdf = TRUE,
+                      #scale = 1.3,
+                      jittered_points = TRUE,
+                      position = position_points_jitter(width = .1, height =0),
+                       point_shape = "|", 
+                       point_size = 1, point_alpha = .7, alpha = .5) +
+  theme_bw() +
+  labs(x = "", y = "") +
+  scale_x_discrete(limits = c(3,4,5,6),
+                     labels = c("M","A", "M", "J"),
+                   expand = c(0.01,0)) +
+  scale_fill_viridis_d()+
+    #scale_fill_viridis(discrete = TRUE, option = "D") +
+  theme(        strip.text.x = element_text(face = 'bold', size = 10),
+        strip.background = element_rect(fill = 'gray95'),
+        strip.text.y = element_text(face = 'bold', size = 10),
+        axis.text.x = element_text(face = 'bold', size = 16),
+        axis.text.y = element_text(face = 'bold', size = 16),
+        axis.title = element_text(face = "bold", size = 16),
+        axis.text = element_text(face = "bold", size = 14)) +
+  guides(fill = FALSE) +
+      scale_y_discrete(expand = expand_scale(mult = c(0.01, .13))) +
+  scale_y_discrete(labels = c("McLaughlin" = "ML",
+                              "Quail Ridge" = "QR",
+                              "Point Reyes" = "PR",
+                              "Fort Ord" = "FO",
+                              "Hastings" = "HT",
+                              "Big Creek" = "BC",
+                              "Rancho Marino" = "RM",
+                              "Coal Oil Point" = "CO",
+                              "Sedgwick" = "SD",
+                              "Santa Cruz Island" = "SC",
+                              "Stunt Ranch" = "SR"))
+
+
+
+
+geom_ridge_larvae_an <- geom_ridge_larvae + annotate("text", x = 2.8, y = 10.5, label = "Larvae", fontface = 2, size = 7)
+
+
+
+######### NYMPH
+
+geom_ridge_nymph <-  
+liz_climate_lifestage2 %>%
+    filter(lifestage == "nymphal") %>% 
+  drop_na() %>% 
+  uncount(count) %>% 
+  filter(reserve != "NA" ) %>% #& lifestage =="Nymphs"
+  ggplot(aes(x = month_numeric, y = fct_rev(reserve), fill = reserve, group = reserve)) +
+  stat_density_ridges(geom = "density_ridges_gradient", 
+                      bandwidth = .35,
+                      rel_min_height = .0001,
+                      alpha = .99,
+                      calc_ecdf = TRUE,
+                      #scale = 1.3,
+                      jittered_points = TRUE,
+                      position = position_points_jitter(width = .1, height =0),
+                       point_shape = "|", 
+                       point_size = 1, point_alpha = .7, alpha = .5) + 
+    scale_fill_viridis_d() +
+  theme_bw() +
+  labs(x = "", y = "") +
+  scale_x_discrete(limits = c(3,4,5,6),
+                     labels = c("M","A", "M", "J"),
+                   expand = c(0.01,0)) +
+  theme(
+        strip.text.x = element_text(face = 'bold', size = 10),
+        strip.background = element_rect(fill = 'gray95'),
+        strip.text.y = element_text(face = 'bold', size = 10),
+        axis.text.x = element_text(face = 'bold', size = 16),
+        axis.text.y = element_text(face = 'bold', size = 16),
+        axis.title = element_text(face = "bold", size = 16),
+        axis.text = element_text(face = "bold", size = 14)
+        ) +
+  guides(fill = FALSE) +
+      scale_y_discrete(expand = expand_scale(mult = c(0.01, .13))) +
+  scale_y_discrete(labels = c("McLaughlin" = "ML",
+                              "Quail Ridge" = "QR",
+                              "Point Reyes" = "PR",
+                              "Fort Ord" = "FO",
+                              "Hastings" = "HT",
+                              "Big Creek" = "BC",
+                              "Rancho Marino" = "RM",
+                              "Coal Oil Point" = "CO",
+                              "Sedgwick" = "SD",
+                              "Santa Cruz Island" = "SC",
+                              "Stunt Ranch" = "SR"))
+
+geom_ridge_nymph_an <- geom_ridge_nymph + annotate("text", x = 2.8, y = 10.5, label = "Nymphs", fontface = 2, size = 7)
+
+  
+geom_ridge_nymph_an2 <- ggarrange(geom_ridge_nymph_an, labels = "", width = .8)
+geom_ridge_larvae_an2 <- ggarrange(geom_ridge_larvae_an, labels = "", width = .8)
+#ggsave(geom_ridge_nymph_an, file = "figures/fig5_a3.jpeg" )
+#ggsave(geom_ridge_larvae_an, file = "figures/fig5_a3_larvae.jpeg")
+```
+
+Panel B - emergence
+```{r}
+## emergence
+liz_climate_lifestage3 <- liz_climate_lifestage
+liz_climate_lifestage3$reserve <- factor(liz_climate_lifestage3$reserve, 
+                                         levels = c("Coal Oil Point", 
+                                                    "Sedgwick", "Stunt Ranch",
+                                                    "McLaughlin", "Quail Ridge", 
+                                                    "Rancho Marino", "Hastings",
+                                                    "Big Creek", "Fort Ord", 
+                                                    "Santa Cruz Island"))
+
+emergence <- 
+  liz_climate_lifestage3 %>% 
+  filter(reserve != "NA" & reserve != "Santa Cruz Island") %>% 
+  group_by(reserve, month_numeric) %>%
+  summarise(month_tot = sum(count)) %>% 
+  mutate(cum = cumsum(month_tot)/sum(month_tot)) %>% 
+  ggplot(aes(x = month_numeric, y = cum, color = reserve)) +
+    geom_hline(yintercept = .50) +
+  geom_line(size = 1.5)+ 
+  scale_color_manual(values = c("Coal Oil Point" = "#780116",
+                                "Sedgwick" = "#C32f27",
+                                "Stunt Ranch" = "#F94144",
+                                "McLaughlin" = "#F3722C",
+                                "Quail Ridge" = "#F9C74F",
+                                "Rancho Marino" = "#90BE6D",
+                                "Hastings" = "#43AA8B",
+                                "Big Creek" = "#4D908E",
+                                "Fort Ord" = "#577590"
+                                ),
+                     labels = c("McLaughlin" = "ML",
+                              "Quail Ridge" = "QR",
+                              "Point Reyes" = "PR",
+                              "Fort Ord" = "FO (coolest)",
+                              "Hastings" = "HT",
+                              "Big Creek" = "BC",
+                              "Rancho Marino" = "RM",
+                              "Coal Oil Point" = "CO (hotest)",
+                              "Sedgwick" = "SD",
+                              "Santa Cruz Island" = "SC",
+                              "Stunt Ranch" = "SR")) +
+  theme_bw() +
+  labs(x = "", y = "Cumulative Proportion", color = "Reserve") +
+  theme(axis.title = element_text(face = "bold", size = 16),
+        strip.text.y = element_text(face = 'bold', size = 10),
+        #axis.text.x = element_text( size = 16, face = "bold"), #face = 'bold',
+        legend.title = element_text(face = "bold",size = 13),
+        #legend.position = "bottom",
+        legend.position = c(.85,.35),
+        legend.text = element_text(size = 14),
+        legend.margin = unit(-.5,"cm"),
+          #axis.title = element_text(face = "bold", size = 16),
+        axis.text = element_text(face = "bold", size = 14)) +
+  scale_x_continuous(labels = c("3" = "M", "4" = "A", "5" = "M", "6" = "J")) 
+
+
+## save image
+emergence_an <- ggarrange(emergence, labels = "")
+#ggsave(emergence_an, file = "figures/fig5_b_v3.jpeg")
+```
+
+Panel C - synchrony
+```{r}
+synchrony <- sync_data %>% 
+  mutate(reserve = factor(reserve,
+                      levels = c("McLaughlin", "Quail Ridge", "Point Reyes",
+                                 "Fort Ord", "Hastings", 
+                                 "Big Creek", "Rancho Marino",
+                                  "Santa Cruz Island",
+                                 "Sedgwick", "Coal Oil Point",
+                                 "Stunt Ranch"))) %>% 
+ggplot( aes(y = fct_rev(reserve), fill = sync))+
+  geom_bar(position = "fill")  +
+  theme_classic() + 
+  labs(y = "", x = "Proportion of Synchronous Events") +
+  scale_fill_manual(name = "Synchronous\n Event", 
+                        labels = c("No", "Yes"),
+                    values = c("grey90", "#dc050c"))+
+  theme(
+        strip.text.x = element_text(face = 'bold', size = 16),
+        strip.background = element_rect(fill = 'gray95'),
+        strip.text.y = element_text(face = 'bold', size = 10),
+        axis.text.x = element_text(face = 'bold', size = 12),
+        axis.text.y = element_text(face = 'bold', size = 16),
+        legend.title = element_text(face = 'bold'),
+        axis.title = element_text(face = "bold", size = 15),
+        legend.direction = "horizontal",
+        legend.text = element_text(size = 13),
+        legend.position = c(.75,.1)
+        ) +
+  geom_vline(xintercept = .50) +
+  scale_x_continuous(expand = c(0.02,0))  +
+  #scale_fill_manual(values = c("grey90", "#dc050c")) +
+    scale_y_discrete(labels = c("McLaughlin" = "ML",
+                              "Quail Ridge" = "QR",
+                              "Point Reyes" = "PR",
+                              "Fort Ord" = "FO",
+                              "Hastings" = "HT",
+                              "Big Creek" = "BC",
+                              "Rancho Marino" = "RM",
+                              "Coal Oil Point" = "CO",
+                              "Sedgwick" = "SD",
+                              "Santa Cruz Island" = "SC",
+                              "Stunt Ranch" = "SR")) 
+
+synchrony_an <- ggarrange(synchrony, labels = "")
+#ggsave(synchrony_an, file = "figures/fig5_c.jpeg")
+```
+
+Panel D - phenology patterns
+```{r}
+drag_sub <- drag_climate_lifestage %>% 
+  dplyr::select(reserve, count, life_stage, month_name) %>% 
+  mutate(method = "drag") %>% 
+  mutate(across(c(life_stage), factor)) 
+
+levels(drag_sub$life_stage) <- list("adult" = "A", "nymphal" = "N", "larval" = "L")
+
+
+liz_sub <- liz_climate_lifestage %>% 
+  dplyr::select(reserve, count, lifestage, month_name) %>% 
+  rename(life_stage = lifestage) %>% 
+  mutate(method = "lizard")
+
+full_sub <- rbind(drag_sub, liz_sub)
+
+
+full_sub$month_name <- factor(full_sub$month_name, 
+                                            levels = c("January", "March", "April", "May", "June"))
+
+
+
+full_sub$reserve <- factor(full_sub$reserve,
+                      levels = c("McLaughlin", "Quail Ridge", "Point Reyes",
+                                 "Fort Ord", "Hastings",
+                                 "Big Creek", "Rancho Marino",
+                                  "Santa Cruz Island",
+                                 "Sedgwick", "Coal Oil Point",
+                                 "Stunt Ranch"))
+
+
+labels = c("McLaughlin" = "ML (ii)",
+                              "Quail Ridge" = "QR (i)",
+                              "Point Reyes" = "PR (i)",
+                              "Fort Ord" = "FO (ii)",
+                              "Hastings" = "HT (i)",
+                              "Big Creek" = "BC (ii)",
+                              "Rancho Marino" = "RM (ii)",
+                              "Coal Oil Point" = "CO (i)",
+                              "Sedgwick" = "SD (ii)",
+                              "Santa Cruz Island" = "SC (ii)",
+                              "Stunt Ranch" = "SR (ii)")
+
+lab_method <- c("drag" = "Drag", "lizard" = "Lizard")
+full_sub %>% 
+  filter(life_stage != "adult") %>% 
+  ggplot(aes(x = month_name, y = count, fill = life_stage)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(~reserve)
+
+
+full_sub2 <- full_sub
+
+
+
+full_sub2$life_stage <- factor(full_sub2$life_stage,
+                               levels = c("larval", "nymphal", "adult"),
+                               labels = c("Larvae", "Nymphs", "Adults"))
+
+facet_grid_mthod_reserve <- 
+  full_sub2 %>% 
+  filter(month_name == "January" |
+         month_name == "March" |
+           month_name == "April" |
+           month_name == "May" |
+           month_name == "June") %>%  
+  group_by(reserve, month_name, life_stage) %>% #method, 
+  summarise(total = sum(count)) %>% 
+    #mutate(total = total+1) %>% # for log_10 
+    filter(month_name != "January") %>% 
+  ggplot(aes(x = month_name, y = total,fill = life_stage , group = reserve)) + #, fill = life_stage , group = reserve
+  geom_col(stat = "identity", position = "fill") + #stat = "identity", 
+  scale_fill_manual(values = c( "#0077bb", "#ee7733","#bbbbbb")) +
+  #facet_grid(method~reserve, scales = "free_y", labeller = labeller(reserve = labels, method = lab_method)) +
+  facet_wrap(~reserve) +
+  theme_bw() +
+  theme(legend.position = "right",#bottom
+        strip.background = element_rect(fill = "grey95"),
+        strip.text = element_text(face = "bold"),
+        axis.text.x = element_text(#angle = 45, 
+          #hjust = 1, 
+          size = 8),
+        axis.title = element_text(size = 12, face = "bold")) +
+  labs(y = "Proportion", x = "", fill = "Life stage")  +
+  scale_x_discrete(labels = c("January" = "J",
+                              "March" = "M",
+                              "April" = "A",
+                              "May" = "M",
+                              "June" = "J")) +
+  guides(fill = FALSE)# +
+  scale_y_log10() 
+
+facet_grid_mthod_reserve_an <- ggarrange(facet_grid_mthod_reserve, labels = "")
+#ggsave(facet_grid_mthod_reserve_an, file = "Revisions/fig5_d_v4.jpeg", height = 4)
+
+```
+
