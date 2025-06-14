@@ -2,7 +2,7 @@ Code to run analyses and make figures for the following manuscript:
 
 **Journal** Ecosphere
 
-**Title** Climate associated variation in the within-season dynamics of juvenile ticks in California
+**Title** Climate-associated variation in the within-season dynamics of juvenile ticks in California
 
 **Authors** Samantha Sambado, Andrew J MacDonald, Andrea Swei, and Cheryl J Briggs
 
@@ -11,7 +11,7 @@ Code to run analyses and make figures for the following manuscript:
 **Location** Field work took place across the University of California Natural Reserve System at 11 field stations ranging from Clear Lake County to Los Angeles County
 
 
-paper doi:
+paper doi: https://doi.org/10.1002/ecs2.70064
 
 data dryad doi: https://doi.org/doi:10.5061/dryad.0p2ngf29d
 
